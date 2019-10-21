@@ -10,9 +10,10 @@ and *G* is an overcomplete graph and contains a subgraph isomorphic to *S*.
 Installation
 ============
 
+Installation is best done through **make install** or **make install-dev**.
 Most of the requirements can be installed through pip, except pylp which must
 be installed with *conda install -c funkey pylp* and rtree which must be
-installed through *conda install rtree* to properly install the *C* spatial
+installed through *conda install rtree* to properly install the C spatial
 libraries.
 
 Implementation

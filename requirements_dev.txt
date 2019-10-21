@@ -1,8 +1,6 @@
 numpy
 networkx
 scipy
-pylp
-rtree
 flake8
 pytest
 pytest-cov
