@@ -1,0 +1,10 @@
+{
+    "restructuredtext.confPath": "",
+    "python.pythonPath": "/home/pattonw/miniconda3/envs/funlib.match/bin/python",
+    "python.testing.pytestArgs": [
+        "funlib"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.pytestEnabled": true
+}
