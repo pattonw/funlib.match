@@ -169,7 +169,7 @@ class IllPosedConsensusMatchTest(unittest.TestCase):
             match_attribute="matched_edge",
         )
 
-        # if this multiple edges assignments were allowed, this would be the expected output
+        # if multiple edges assignments were allowed, this would be the expected output
         """
         self.assertEqual(skeleton.edges[("a", "b")].get("matched_edge"), ("A", "B"))
         self.assertEqual(skeleton.edges[("a", "c")].get("matched_edge"), ("A", "D"))

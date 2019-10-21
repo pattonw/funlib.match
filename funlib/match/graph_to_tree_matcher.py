@@ -77,9 +77,10 @@ class GraphToTreeMatcher:
             f"Found optimal solution with score: {self._score_solution(solution)}"
         )
         for graph_e, tree_e in matches:
+            indicator = self.g2t_match_indicators[graph_e][tree_e]
             logger.debug(
                 f"edge {graph_e} assigned to {tree_e} with score: "
-                + f"{self.match_indicator_costs[self.g2t_match_indicators[graph_e][tree_e]]}"
+                + f"{self.match_indicator_costs[indicator]}"
             )
 
         return matches, self._score_solution(solution)
@@ -128,16 +129,17 @@ class GraphToTreeMatcher:
                 if solution[i] > 0.5:
                     if graph_n not in matched_tree.nodes and l is not None:
                         logger.warning(
-                            f"Node {graph_n} in G matched to {l} in T with no adjacent edges "
-                            + f"matched!\nNode {l} in T has {len(list(self.tree.edges(l)))} "
-                            + f"neighbors!"
+                            f"Node {graph_n} in G matched to {l} in T with no adjacent "
+                            + f"edges matched!\nNode {l} in T has "
+                            + f"{len(list(self.tree.edges(l)))} neighbors!"
                         )
                         matched_tree.add_node(
                             graph_n, **deepcopy(self.graph.nodes[graph_n])
                         )
                     elif graph_n not in matched_tree.nodes and l is None:
-                        # Assigning None to nodes in G has no cost, thus there are many optimal
-                        # solutions containing excess assignments. These can be ignored
+                        # Assigning None to nodes in G has no cost, thus there are many
+                        # optimal solutions containing excess assignments. These can be
+                        # ignored
                         pass
                     else:
                         matched_tree.nodes[graph_n]["match_label"] = l
@@ -187,8 +189,9 @@ class GraphToTreeMatcher:
         # a---b---c---d--e      f--g--h--i
         #       wcc_a               wcc_b
 
-        # for every node x in wcc_a and y in wcc_b, if dist(x, y) < match_distance_threshold
-        # add an edge from x to y and y to x
+        # for every node x in wcc_a and y in wcc_b, add an edge from x to y and y to x
+        # if dist(x, y) < match_distance_threshold
+
         wccs = list(list(x) for x in nx.weakly_connected_components(self.graph))
         if len(wccs) < 2:
             return
@@ -258,8 +261,9 @@ class GraphToTreeMatcher:
         return [self.tree_kd_ids[i] for i in queried_ids]
 
     def __tree_edge_query(self, u_loc: np.ndarray, v_loc: np.ndarray, radius: float):
-        # r tree only stores bounding boxes of lines, so we have to retrieve all potential
-        # edges, and then filter them based on a line specific distance calculation
+        # r tree only stores bounding boxes of lines, so we have to retrieve all
+        # potential edges, and then filter them based on a line specific distance
+        # calculation
         rect = tuple(
             x
             for x in itertools.chain(
@@ -368,9 +372,9 @@ class GraphToTreeMatcher:
         constraints based on the implementation described here:
         https://hal.archives-ouvertes.fr/hal-00726076/document
         pg 11
-        Pierre Le Bodic, Pierre Héroux, Sébastien Adam, Yves Lecourtier. An integer linear
-        program for substitution-tolerant subgraph isomorphism and its use for symbol
-        spotting in technical drawings.
+        Pierre Le Bodic, Pierre Héroux, Sébastien Adam, Yves Lecourtier. An integer
+        linear program for substitution-tolerant subgraph isomorphism and its use for
+        symbol spotting in technical drawings.
         Pattern Recognition, Elsevier, 2012, 45 (12), pp.4214-4224. ffhal-00726076
         """
 
@@ -411,7 +415,7 @@ class GraphToTreeMatcher:
             for tree_n in self.possible_matches[graph_n]:
                 g2t_n_indicator = self.g2t_match_indicators[graph_n][tree_n]
 
-                # (2e) 1-1 Tree out edge to Graph out edge mapping for any pair of matched nodes
+                # (2e) 1-1 Tree out edge to Graph out edge mapping
                 for tree_out_e in self.tree.out_edges(tree_n):
 
                     constraint = pylp.LinearConstraint()
@@ -426,7 +430,7 @@ class GraphToTreeMatcher:
                     constraint.set_value(0)
                     self.constraints.add(constraint)
 
-                # (2f) 1-1 Tree in edge to Graph in edge mapping for any pair of matched nodes
+                # (2f) 1-1 Tree in edge to Graph in edge mapping
                 for tree_in_e in self.tree.in_edges(tree_n):
 
                     constraint = pylp.LinearConstraint()
@@ -444,12 +448,12 @@ class GraphToTreeMatcher:
         # EXTRA CONSTRAINT: balanced in_edges/out_edges
         # The previous 5 are enough to cover isomorphisms, but we need to model chains
         # in G representing edges in S
-        # 1) If two vertices are matched together, an edge originating at the vertex of S
-        # must be mapped to n edges targeting the vertex of G, and n+1 edges originating
-        # from the vertex in G.
+        # 1) If two vertices are matched together, an edge originating at the vertex of
+        # S must be mapped to n edges targeting the vertex of G, and n+1 edges
+        # originating from the vertex in G.
         # 1) is Redundant since this is enforced by previous constraints with n=0
-        # 2) Similarly, an edge targeting the vertex of S must be mapped to n+1 edges targeting
-        # the vertex of G, and n edges originating from the vertex in G.
+        # 2) Similarly, an edge targeting the vertex of S must be mapped to n+1 edges
+        # targeting the vertex of G, and n edges originating from the vertex in G.
         # 2) is Redundant since this is enforced by previous constraints with n=0
         # 3) If a vertex in G is not mapped to a vertex in S, any edge in S
         # matched to n edges targeting the vertex in G, must also be mapped to n edges
@@ -459,8 +463,8 @@ class GraphToTreeMatcher:
         # given x_ij for all i in V(G) and j in V(T)
         # given y_ab_cd for all (a,b) in E(G) and (c,d) in E(T)
         # For every node i in V(G) and edge (c, d) in E(T)
-        #   let n_i_cd = SUM(y_ei_cd) over all edges (e, i) in E(G) (number if in edges)
-        #   let m_i_cd = SUM(y_ie_cd) over all edges (i, e) in E(G) (number of out edges)
+        #   let n_i_cd = SUM(y_ei_cd) over all edges (e, i) in E(G) (# if in edges)
+        #   let m_i_cd = SUM(y_ie_cd) over all edges (i, e) in E(G) (# of out edges)
         #   let imbalance = SUM(x_ih * {1 if h==c, -1 if h==d}) over all nodes h in N(T)
         #   constrain n_i_cd - m_i_cd + imbalance = 0
         for graph_n in self.graph.nodes():
@@ -503,7 +507,8 @@ class GraphToTreeMatcher:
         # let degree(None) = 2
         # For every node i in V(G)
         #   let N = SUM(degree(c)*x_ic) for all c in V(T) Union None
-        #   let y = SUM(y_ai_cd) + SUM(y_ia_cd) for all a adjacent to i, and all (c,d) in E(T)
+        #   let y = SUM(y_ai_cd) + SUM(y_ia_cd)
+        #       for all a adjacent to i, and all (c,d) in E(T)
         #   y - N <= 0
         for graph_n in self.graph.nodes():
             degree_constraint = pylp.LinearConstraint()
