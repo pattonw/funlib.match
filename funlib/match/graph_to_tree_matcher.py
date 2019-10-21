@@ -21,6 +21,7 @@ class GraphToTreeMatcher:
         tree: nx.DiGraph,
         match_distance_threshold: float,
         node_balance: float = 10,
+        use_gurobi: bool = False,
     ):
 
         if isinstance(graph, nx.Graph):
@@ -38,6 +39,8 @@ class GraphToTreeMatcher:
 
         self.match_distance_threshold = match_distance_threshold
         self.node_balance = node_balance
+
+        self.use_gurobi = use_gurobi
 
         self.objective = None
         self.constraints = None
@@ -82,10 +85,13 @@ class GraphToTreeMatcher:
         return matches, self._score_solution(solution)
 
     def solve(self):
-
-        solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
+        if self.use_gurobi:
+            solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
+            solver.set_num_threads(1)
+        else:
+            solver = pylp.create_linear_solver(pylp.Preference.Scip)
+            # don't set num threads. It leads to a core dump
         solver.initialize(self.num_variables, pylp.VariableType.Binary)
-        solver.set_num_threads(1)
         solver.set_timeout(120)
 
         solver.set_objective(self.objective)
