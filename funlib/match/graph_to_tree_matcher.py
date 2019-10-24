@@ -88,7 +88,9 @@ class GraphToTreeMatcher:
     def solve(self):
         if self.use_gurobi:
             solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
-            solver.set_num_threads(1)
+            # set num threads sometimes causes an error. See issue #5 on 
+            # github.com/funkey/pylp
+            # solver.set_num_threads(1)
         else:
             solver = pylp.create_linear_solver(pylp.Preference.Scip)
             # don't set num threads. It leads to a core dump
