@@ -1,0 +1,2 @@
+17 is the complete tree from which 15 and 16 were taken as individual components for testing.
+17 contains many tree components with a large amount of skeletonization for matching. Among its pieces is a crossover which would be nice for testing but needs manual extraction of the 2 relevant tree components.
