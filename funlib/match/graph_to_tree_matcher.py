@@ -24,13 +24,13 @@ class GraphToTreeMatcher:
         use_gurobi: bool = False,
     ):
 
-        if isinstance(graph, nx.Graph):
-            self.undirected_graph = graph
-            self.graph = graph.to_directed()
-        elif isinstance(graph, nx.DiGraph):
+        if isinstance(graph, nx.DiGraph):
             self.undirected_graph = graph.to_undirected()
             # TODO: support graph as nx.DiGraph
             self.graph = self.undirected_graph.to_directed(graph)
+        elif isinstance(graph, nx.Graph):
+            self.undirected_graph = graph
+            self.graph = graph.to_directed()
         self.tree = tree
         assert nx.is_directed_acyclic_graph(self.tree), (
             "cannot match an arbitrary source to an arbitrary target. "
