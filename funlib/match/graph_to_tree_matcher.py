@@ -32,9 +32,9 @@ class GraphToTreeMatcher:
             # TODO: support graph as nx.DiGraph
             self.graph = self.undirected_graph.to_directed(graph)
         self.tree = tree
-        assert nx.is_arborescence(self.tree), (
+        assert nx.is_directed_acyclic_graph(self.tree), (
             "cannot match an arbitrary source to an arbitrary target. "
-            + "target graph should be a tree. i.e. DAG with max in_degree = 1"
+            + "target graph should be a DAG."
         )
 
         self.match_distance_threshold = match_distance_threshold
