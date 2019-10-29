@@ -22,6 +22,7 @@ class GraphToTreeMatcher:
         match_distance_threshold: float,
         node_balance: float = 10,
         use_gurobi: bool = False,
+        penalize_edge_attrs: List[str] = ["preprocessed"],
     ):
 
         if isinstance(graph, nx.DiGraph):
@@ -39,13 +40,13 @@ class GraphToTreeMatcher:
 
         self.match_distance_threshold = match_distance_threshold
         self.node_balance = node_balance
+        self.penalize_edge_attrs = penalize_edge_attrs
 
         self.use_gurobi = use_gurobi
 
         self.objective = None
         self.constraints = None
 
-        self.__preprocess_graph()
         self.__initialize_spatial_indicies()
         self.__find_possible_matches()
         self.__create_inidicators()
@@ -85,10 +86,16 @@ class GraphToTreeMatcher:
 
         return matches, self._score_solution(solution)
 
+    def get_matched(self) -> nx.DiGraph:
+
+        solution = self.solve()
+
+        return self.create_tree(solution)
+
     def solve(self):
         if self.use_gurobi:
             solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
-            # set num threads sometimes causes an error. See issue #5 on 
+            # set num threads sometimes causes an error. See issue #5 on
             # github.com/funkey/pylp
             # solver.set_num_threads(1)
         else:
@@ -178,53 +185,6 @@ class GraphToTreeMatcher:
 
     def __check_consistency(self, solution):
         return True
-
-    def __preprocess_graph(self):
-        """
-        Solver only works if G is over complete. This function is responsible for
-        adding edges and or nodes to G s.t. some possible data quality issues in
-        G are resolved.
-        """
-
-        # handle gaps:
-        # A------------------------------B
-        # a---b---c---d--e      f--g--h--i
-        #       wcc_a               wcc_b
-
-        # for every node x in wcc_a and y in wcc_b, add an edge from x to y and y to x
-        # if dist(x, y) < match_distance_threshold
-
-        wccs = list(list(x) for x in nx.weakly_connected_components(self.graph))
-        if len(wccs) < 2:
-            return
-        spatial_wccs = [
-            cKDTree([self.graph.nodes[x]["location"] for x in wcc]) for wcc in wccs
-        ]
-        for (ind_a, wcc_a), (ind_b, wcc_b) in itertools.combinations(
-            enumerate(spatial_wccs), 2
-        ):
-            for node_a_index, closest_nodes in itertools.chain(
-                *zip(
-                    enumerate(
-                        wcc_a.query_ball_tree(wcc_b, self.match_distance_threshold)
-                    )
-                )
-            ):
-                for node_b_index in closest_nodes:
-                    node_a = wccs[ind_a][node_a_index]
-                    node_b = wccs[ind_b][node_b_index]
-                    if (
-                        np.linalg.norm(
-                            self.graph.nodes[node_a]["location"]
-                            - self.graph.nodes[node_b]["location"]
-                        )
-                        < self.match_distance_threshold
-                    ):
-                        self.graph.add_edge(node_a, node_b)
-                        self.graph.add_edge(node_b, node_a)
-
-        # handle branching:
-        pass
 
     def __find_possible_matches(self):
         self.possible_matches = {}
@@ -587,3 +547,19 @@ def match_graph_to_tree(
             graph.edges[e1][match_attribute] = [match_attr, e2]
 
     return matcher, score
+
+
+def get_matched(
+    graph: nx.Graph,
+    tree: nx.DiGraph,
+    match_attribute: str,
+    match_distance_threshold: float,
+):
+    for graph_e, graph_e_attrs in graph.edges.items():
+        if match_attribute in graph_e_attrs:
+            del graph_e_attrs[match_attribute]
+
+    matcher = GraphToTreeMatcher(graph, tree, match_distance_threshold)
+    matched = matcher.get_matched()
+
+    return matched
