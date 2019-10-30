@@ -41,15 +41,6 @@ class MouselightTest(unittest.TestCase):
                 passed += 1
             except:
                 logger.warning(f"Failed on valid {example}")
-                from neurolight.visualizations.neuroglancer_trees import visualize_trees
-                visualize_trees(
-                    {
-                        "tree": tree,
-                        "preprocessed": graph,
-                        # "matched": matched
-                    }
-                )
-                pass
 
         self.assertEqual(count, passed)
 
