@@ -7,7 +7,9 @@ import itertools
 from typing import Dict
 
 
-def mouselight_preprocessing(graph: nx.DiGraph(), min_dist=float):
+def mouselight_preprocessing(
+    graph: nx.DiGraph(), min_dist: float, voxel_size=[10, 3, 3]
+):
     """
     Preprocessing for mouselight skeletonizations s.t. they can be matched
     to mouselight consensus neurons.
@@ -58,4 +60,8 @@ def mouselight_preprocessing(graph: nx.DiGraph(), min_dist=float):
                 if edge_len < min_dist:
                     # Add extra penalties to added edges to minimize cable length
                     # assigned to ambiguous ground truth.
-                    graph.add_edge(node_a, node_b, penalty=2 * (edge_len + 1))
+                    graph.add_edge(
+                        node_a,
+                        node_b,
+                        penalty=((edge_len + 1) ** 2) / np.linalg.norm(voxel_size),
+                    )
