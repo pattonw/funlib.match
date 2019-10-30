@@ -15,9 +15,9 @@ graph = parse_npy_graph(filename / "graph.npz").to_undirected()
 tree = parse_npy_graph(filename / "tree.npz")
 
 temp = copy.deepcopy(graph)
-mouselight_preprocessing(temp, min_dist=50)
+mouselight_preprocessing(temp, min_dist=48)
 
-matched = get_matched(temp, tree, "matched", 100)
+matched = get_matched(temp, tree, "matched", 76)
 
 visualize_trees(
     {

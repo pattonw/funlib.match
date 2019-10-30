@@ -34,10 +34,10 @@ class MouselightTest(unittest.TestCase):
         for example in mouselight_valid_examples.iterdir():
             count += 1
             graph = parse_npy_graph(example / "graph.npz")
-            mouselight_preprocessing(graph, min_dist=50)
+            mouselight_preprocessing(graph, min_dist=48)
             tree = parse_npy_graph(example / "tree.npz")
             try:
-                matched = get_matched(graph, tree, "matched", 100)
+                matched = get_matched(graph, tree, "matched", 76)
                 passed += 1
             except:
                 logger.warning(f"Failed on valid {example}")
@@ -52,10 +52,10 @@ class MouselightTest(unittest.TestCase):
         for example in mouselight_valid_examples.iterdir():
             count += 1
             graph = parse_npy_graph(example / "graph.npz")
-            mouselight_preprocessing(graph, 50)
+            mouselight_preprocessing(graph, 48)
             tree = parse_npy_graph(example / "tree.npz")
             try:
-                match_graph_to_tree(graph, tree, "matched", 100)
+                match_graph_to_tree(graph, tree, "matched", 76)
                 logger.warning(f"Passed on invalid {example}")
             except:
                 failed += 1
