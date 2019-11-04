@@ -39,11 +39,12 @@ def mouselight_preprocessing(
 
     temp.remove_nodes_from(filter(lambda x: temp.degree(x) > 2, list(temp.nodes)))
 
-    nodes = cKDTree([node["location"] for node in temp.nodes.values()])
-
     wccs = list(list(x) for x in nx.connected_components(temp))
     if len(wccs) < 2:
         return
+
+    nodes = cKDTree([node["location"] for node in temp.nodes.values()])
+
     spatial_wccs = [cKDTree([temp.nodes[x]["location"] for x in wcc]) for wcc in wccs]
     for (ind_a, spatial_a), (ind_b, spatial_b) in itertools.combinations(
         enumerate(spatial_wccs), 2
