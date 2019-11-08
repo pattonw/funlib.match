@@ -1,5 +1,6 @@
 import networkx as nx
 import numpy as np
+import pytest
 
 import itertools
 import unittest
@@ -24,7 +25,7 @@ def parse_npy_graph(filename):
     )
     return graph
 
-
+@pytest.mark.slow
 class MouselightTest(unittest.TestCase):
     def test_valid(self):
         count = 0

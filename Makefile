@@ -12,5 +12,5 @@ install-dev:
 
 .PHONY: tests
 tests:
-	pytest -v --cov=funlib funlib
+	pytest -v --cov=funlib funlib -m "not slow"
 	flake8 funlib
