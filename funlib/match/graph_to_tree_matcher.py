@@ -21,9 +21,12 @@ class GraphToTreeMatcher:
         tree: nx.DiGraph,
         match_distance_threshold: float,
         node_balance: float = 10,
-        use_gurobi: bool = False,
+        use_gurobi: bool = True,
         penalize_edge_attrs: List[str] = ["preprocessed"],
     ):
+        logger.debug(
+            f"Got G with {len(graph.nodes)} nodes and T with {len(tree.nodes)} nodes!"
+        )
 
         if isinstance(graph, nx.DiGraph):
             self.undirected_graph = graph.to_undirected()
@@ -93,6 +96,7 @@ class GraphToTreeMatcher:
         return self.create_tree(solution)
 
     def solve(self):
+        logger.debug(f"Creating Solver!")
         if self.use_gurobi:
             solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
             # set num threads sometimes causes an error. See issue #5 on
@@ -108,9 +112,11 @@ class GraphToTreeMatcher:
 
         consistent = False
         while not consistent:
+            logger.debug(f"Starting Solve!")
 
             solver.set_constraints(self.constraints)
             solution, message = solver.solve()
+            logger.debug(f"Finished solving!, got message ({message})")
             if "NOT" in message:
                 raise ValueError("No solution could be found for this problem!")
             consistent = self.__check_consistency(solution)
