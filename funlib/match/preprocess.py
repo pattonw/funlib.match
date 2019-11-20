@@ -61,8 +61,4 @@ def mouselight_preprocessing(
                 if edge_len < min_dist:
                     # Add extra penalties to added edges to minimize cable length
                     # assigned to ambiguous ground truth.
-                    graph.add_edge(
-                        node_a,
-                        node_b,
-                        penalty=((edge_len + 1) ** 2) / np.linalg.norm(voxel_size),
-                    )
+                    graph.add_edge(node_a, node_b, penalty=2*(edge_len + 1))

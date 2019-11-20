@@ -23,7 +23,7 @@ visualize_trees(
     {
         "graph": graph,
         "tree": tree,
-        #"preprocessed": temp,
+        "preprocessed": temp,
         "matched": matched
     }
 )

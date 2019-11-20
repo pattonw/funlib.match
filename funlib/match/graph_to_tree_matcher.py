@@ -267,7 +267,7 @@ class GraphToTreeMatcher:
             self.graph.nodes[graph_n]["location"] - self.tree.nodes[tree_n]["location"]
         )
         penalty = self.__node_cost_penalty(graph_n)
-        return self.node_balance * (distance + penalty)
+        return self.node_balance * (distance + penalty + distance * penalty)
 
     def __node_cost_penalty(self, graph_n: Hashable) -> float:
         return self.graph.nodes[graph_n].get("penalty", 1)
@@ -280,7 +280,7 @@ class GraphToTreeMatcher:
             self.tree.nodes[tree_e[1]]["location"],
         )
         penalty = self.__edge_cost_penalty(graph_e, tree_e)
-        return dist + penalty
+        return dist + penalty + dist * penalty
 
     def __edge_cost_penalty(self, graph_e: Edge, tree_e: Edge):
         return self.graph.edges[graph_e].get("penalty", 1)
@@ -537,12 +537,15 @@ def match_graph_to_tree(
     tree: nx.DiGraph,
     match_attribute: str,
     match_distance_threshold: float,
+    use_gurobi: bool = True,
 ):
     for graph_e, graph_e_attrs in graph.edges.items():
         if match_attribute in graph_e_attrs:
             del graph_e_attrs[match_attribute]
 
-    matcher = GraphToTreeMatcher(graph, tree, match_distance_threshold)
+    matcher = GraphToTreeMatcher(
+        graph, tree, match_distance_threshold, use_gurobi=use_gurobi
+    )
     matches, score = matcher.match()
 
     for e1, e2 in matches:
