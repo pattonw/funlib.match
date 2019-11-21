@@ -10,3 +10,5 @@
 *.so
 *.coverage
 build
+.vscode
+.pytest_cache

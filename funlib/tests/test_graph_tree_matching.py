@@ -2,457 +2,695 @@ import networkx as nx
 import numpy as np
 
 import itertools
-import unittest
+import pytest
 
-from funlib.match import match_graph_to_tree
+from funlib.match import GraphToTreeMatcher
 
-class ConsensusMatchTest(unittest.TestCase):
-    def test_simple(self):
 
-        # consensus graph:
-        #
-        # A---->B---->C
-        #
-        # skeleton graph:
-        #
-        # a--b--c--d--e
-        consensus = nx.DiGraph()
-        consensus.add_nodes_from(
-            [
-                ("A", {"location": np.array([0, 0, 0])}),
-                ("B", {"location": np.array([0, 0, 10])}),
-                ("C", {"location": np.array([0, 0, 20])}),
-            ]
+def validate_matching(
+    target_nodes,
+    target_edges,
+    overcomplete_nodes,
+    overcomplete_edges,
+    node_costs,
+    edge_costs,
+    expected_node_matchings,
+    expected_edge_matchings,
+    expected_cost,
+    enforced_assignments=[],
+):
+    target = nx.DiGraph()
+    target.add_nodes_from(target_nodes)
+    target.add_edges_from(target_edges)
+
+    overcomplete = nx.Graph()
+    overcomplete.add_nodes_from(overcomplete_nodes)
+    overcomplete.add_edges_from(overcomplete_edges)
+
+    matcher = GraphToTreeMatcher(overcomplete, target, node_costs, edge_costs)
+    matcher.enforce_expected_assignments(enforced_assignments)
+    node_matchings, edge_matchings, cost = matcher.match()
+    matchings = {a: b for a, b in itertools.chain(node_matchings, edge_matchings)}
+
+    matcher2 = GraphToTreeMatcher(
+        overcomplete, target, node_costs, edge_costs, use_gurobi=False
+    )
+    matcher2.enforce_expected_assignments(enforced_assignments)
+    node_matchings2, edge_matchings2, cost2 = matcher2.match()
+    matchings2 = {a: b for a, b in itertools.chain(node_matchings2, edge_matchings2)}
+
+    for a, b in itertools.chain(expected_node_matchings, expected_edge_matchings):
+        assert matchings[a] == matchings2[a] == b
+
+    assert cost == cost2 == expected_cost
+
+    overcomplete = nx.DiGraph()
+    overcomplete.add_nodes_from(overcomplete_nodes)
+    overcomplete.add_edges_from(overcomplete_edges)
+
+    matcher = GraphToTreeMatcher(overcomplete, target, node_costs, edge_costs)
+    matcher.enforce_expected_assignments(enforced_assignments)
+    node_matchings, edge_matchings, cost = matcher.match()
+    matchings = {a: b for a, b in itertools.chain(node_matchings, edge_matchings)}
+
+    matcher2 = GraphToTreeMatcher(
+        overcomplete, target, node_costs, edge_costs, use_gurobi=False
+    )
+    matcher2.enforce_expected_assignments(enforced_assignments)
+    node_matchings2, edge_matchings2, cost2 = matcher2.match()
+    matchings2 = {a: b for a, b in itertools.chain(node_matchings2, edge_matchings2)}
+
+    for a, b in itertools.chain(expected_node_matchings, expected_edge_matchings):
+        assert matchings[a] == matchings2[a] == b
+
+    assert cost == cost2 == expected_cost
+
+
+def test_simple_chain():
+    """
+    target graph:
+
+    A---->B---->C
+
+    overcomplete graph:
+
+    a--b--c--d--e
+    """
+    target = nx.DiGraph()
+    target_nodes = ["A", "B", "C"]
+    target_edges = [("A", "B"), ("B", "C")]
+
+    overcomplete_nodes = ["a", "b", "c", "d", "e"]
+    overcomplete_edges = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")]
+
+    node_costs = [
+        ("a", "A", 1),
+        ("b", "A", 5),
+        ("b", "B", 5),
+        ("c", "B", 1),
+        ("d", "B", 5),
+        ("d", "C", 5),
+        ("e", "C", 1),
+    ]
+
+    edge_costs = [
+        (("a", "b"), ("A", "B"), 1),
+        (("b", "c"), ("A", "B"), 1),
+        (("b", "c"), ("B", "C"), 5),
+        (("c", "d"), ("A", "B"), 5),
+        (("c", "d"), ("B", "C"), 1),
+        (("d", "e"), ("B", "C"), 1),
+    ]
+
+    expected_node_matchings = [
+        ("a", "A"),
+        ("b", None),
+        ("c", "B"),
+        ("d", None),
+        ("e", "C"),
+    ]
+
+    expected_edge_matchings = [
+        (("a", "b"), ("A", "B")),
+        (("b", "c"), ("A", "B")),
+        (("c", "d"), ("B", "C")),
+        (("d", "e"), ("B", "C")),
+    ]
+
+    expected_cost = 7
+
+    validate_matching(
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+    )
+
+
+def test_short_chain():
+    """
+    target graph:
+
+    A---->B---->C
+
+    overcomplete graph:
+
+        a--b--c
+    """
+    target_nodes = ["A", "B", "C"]
+    target_edges = [("A", "B"), ("B", "C")]
+
+    overcomplete_nodes = ["a", "b", "c"]
+    overcomplete_edges = [("a", "b"), ("b", "c")]
+
+    node_costs = [
+        ("a", "A", 5),
+        ("a", "B", 5),
+        ("b", "B", 1),
+        ("c", "B", 5),
+        ("c", "C", 5),
+    ]
+
+    edge_costs = [
+        (("a", "b"), ("A", "B"), 1),
+        (("a", "b"), ("B", "C"), 5),
+        (("b", "c"), ("A", "B"), 5),
+        (("b", "c"), ("B", "C"), 1),
+    ]
+
+    expected_node_matchings = [
+        ("a", "A"),
+        ("b", "B"),
+        ("c", "C"),
+    ]
+
+    expected_edge_matchings = [
+        (("a", "b"), ("A", "B")),
+        (("b", "c"), ("B", "C")),
+    ]
+
+    expected_cost = 13
+
+    validate_matching(
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+    )
+
+
+def test_long_chain():
+    """
+    target graph:
+
+        A---->B---->C
+
+    overcomplete graph:
+
+    a--b--c--d--e--f--g
+
+    matching should not have too many edge assignments.
+    """
+
+    target_nodes = ["A", "B", "C"]
+    target_edges = [("A", "B"), ("B", "C")]
+
+    overcomplete_nodes = ["a", "b", "c", "d", "e", "f", "g"]
+    overcomplete_edges = [
+        ("a", "b"),
+        ("b", "c"),
+        ("c", "d"),
+        ("d", "e"),
+        ("e", "f"),
+        ("f", "g"),
+    ]
+
+    node_costs = [
+        ("a", "A", 5),
+        ("b", "A", 1),
+        ("c", "A", 5),
+        ("c", "B", 5),
+        ("d", "B", 1),
+        ("e", "B", 5),
+        ("e", "C", 5),
+        ("f", "C", 1),
+        ("g", "A", 5),
+    ]
+
+    edge_costs = [
+        (("a", "b"), ("A", "B"), 5),
+        (("b", "c"), ("A", "B"), 1),
+        (("c", "d"), ("A", "B"), 1),
+        (("c", "d"), ("B", "C"), 5),
+        (("d", "e"), ("A", "B"), 5),
+        (("d", "e"), ("B", "C"), 1),
+        (("e", "f"), ("B", "C"), 1),
+        (("f", "g"), ("B", "C"), 5),
+    ]
+
+    expected_node_matchings = [
+        ("a", None),
+        ("b", "A"),
+        ("c", None),
+        ("d", "B"),
+        ("e", None),
+        ("f", "C"),
+        ("g", None),
+    ]
+
+    expected_edge_matchings = [
+        (("a", "b"), None),
+        (("b", "c"), ("A", "B")),
+        (("c", "d"), ("A", "B")),
+        (("d", "e"), ("B", "C")),
+        (("e", "f"), ("B", "C")),
+        (("f", "g"), None),
+    ]
+
+    expected_cost = 7
+
+    validate_matching(
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+    )
+
+
+def test_simple_4_branch():
+    """
+    target graph:
+
+          A
+          |
+          |
+    B<----X---->C
+          |
+          |
+          D
+
+    overcomplete graph:
+
+          a
+          |
+          b
+          |
+    c--d--e--f--g
+          |
+          h
+          |
+          i
+
+    Matching should be able to match realistic 4 way junction
+    """
+    target_nodes = ["D", "B", "X", "A", "C"]
+    target_edges = [("A", "X"), ("X", "B"), ("X", "C"), ("X", "D")]
+
+    overcomplete_nodes = ["c", "d", "g", "f", "e", "b", "a", "h", "i"]
+    overcomplete_edges = [
+        ("a", "b"),
+        ("b", "e"),
+        ("e", "d"),
+        ("d", "c"),
+        ("e", "f"),
+        ("f", "g"),
+        ("e", "h"),
+        ("h", "i"),
+    ]
+
+    node_costs = [
+        ("a", "A", 1),
+        ("b", "A", 5),
+        ("b", "X", 5),
+        ("c", "B", 1),
+        ("d", "B", 5),
+        ("d", "X", 5),
+        ("e", "X", 1),
+        ("f", "X", 5),
+        ("f", "C", 5),
+        ("g", "C", 1),
+        ("h", "X", 5),
+        ("h", "D", 5),
+        ("i", "D", 1),
+    ]
+
+    edge_costs = [
+        (("a", "b"), ("A", "X"), 1),
+        (("b", "e"), ("A", "X"), 1),
+        (("b", "e"), ("X", "B"), 5),
+        (("b", "e"), ("X", "C"), 5),
+        (("b", "e"), ("X", "D"), 5),
+        (("e", "d"), ("A", "X"), 5),
+        (("e", "d"), ("X", "B"), 1),
+        (("e", "d"), ("X", "C"), 5),
+        (("e", "d"), ("X", "D"), 5),
+        (("d", "c"), ("X", "B"), 1),
+        (("e", "f"), ("A", "X"), 5),
+        (("e", "f"), ("X", "B"), 5),
+        (("e", "f"), ("X", "C"), 1),
+        (("e", "f"), ("X", "D"), 5),
+        (("f", "g"), ("X", "C"), 1),
+        (("e", "h"), ("A", "X"), 5),
+        (("e", "h"), ("X", "B"), 5),
+        (("e", "h"), ("X", "C"), 5),
+        (("e", "h"), ("X", "D"), 1),
+        (("h", "i"), ("X", "D"), 1),
+    ]
+
+    expected_node_matchings = [
+        ("e", "X"),
+        ("a", "A"),
+        ("b", None),
+        ("c", "B"),
+        ("d", None),
+        ("g", "C"),
+        ("f", None),
+        ("i", "D"),
+        ("h", None),
+    ]
+
+    expected_edge_matchings = [
+        (("a", "b"), ("A", "X")),
+        (("b", "e"), ("A", "X")),
+        (("e", "d"), ("X", "B")),
+        (("d", "c"), ("X", "B")),
+        (("e", "f"), ("X", "C")),
+        (("f", "g"), ("X", "C")),
+        (("e", "h"), ("X", "D")),
+        (("h", "i"), ("X", "D")),
+    ]
+
+    expected_cost = 13
+
+    validate_matching(
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+    )
+
+
+def test_confounding_chain():
+    """
+    target graph:
+
+    A---->B---->C
+
+    overcomplete graph:
+
+     a--b--c--d--e
+           |
+           f--g--h
+
+    the optimal matching should not assign anything to extra chain
+    as long as using it is more expensive than c--d--e
+    """
+
+    target_nodes = ["A", "B", "C"]
+    target_edges = [("A", "B"), ("B", "C")]
+
+    overcomplete_nodes = ["a", "b", "c", "d", "e", "f", "g", "h"]
+    overcomplete_edges = [
+        ("a", "b"),
+        ("b", "c"),
+        ("c", "d"),
+        ("d", "e"),
+        ("c", "f"),
+        ("f", "g"),
+        ("g", "h"),
+    ]
+
+    node_costs = [
+        ("a", "A", 1),
+        ("b", "A", 5),
+        ("b", "B", 5),
+        ("c", "B", 1),
+        ("d", "B", 5),
+        ("d", "C", 5),
+        ("e", "C", 1),
+        ("f", "B", 3),
+        ("g", "B", 6),
+        ("g", "C", 6),
+        ("h", "C", 3),
+    ]
+
+    edge_costs = [
+        (("a", "b"), ("A", "B"), 1),
+        (("b", "c"), ("A", "B"), 1),
+        (("b", "c"), ("B", "C"), 5),
+        (("c", "d"), ("A", "B"), 5),
+        (("c", "d"), ("B", "C"), 1),
+        (("d", "e"), ("B", "C"), 1),
+        (("c", "f"), ("A", "B"), 5),
+        (("c", "f"), ("B", "C"), 5),
+        (("f", "g"), ("B", "C"), 3),
+        (("g", "h"), ("B", "C"), 3),
+    ]
+
+    expected_node_matchings = [
+        ("a", "A"),
+        ("b", None),
+        ("c", "B"),
+        ("d", None),
+        ("e", "C"),
+        ("f", None),
+        ("g", None),
+        ("h", None),
+    ]
+
+    expected_edge_matchings = [
+        (("a", "b"), ("A", "B")),
+        (("b", "c"), ("A", "B")),
+        (("c", "d"), ("B", "C")),
+        (("d", "e"), ("B", "C")),
+        (("c", "f"), None),
+        (("f", "g"), None),
+        (("g", "h"), None),
+    ]
+
+    expected_cost = 7
+
+    validate_matching(
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+    )
+
+
+def test_confounding_loop():
+    """
+    target graph:
+
+    A---->B---->C
+
+
+    overcomplete graph:
+
+        a--b--c--d--e
+
+            f--g
+            | /
+            h
+
+    the optimal matching should not match all edges in a loop
+    to the same edge to create an "infinite chain".
+    """
+
+    target_nodes = ["A", "B", "C"]
+    target_edges = [("A", "B"), ("B", "C")]
+
+    overcomplete_nodes = ["a", "b", "c", "d", "e", "f", "g", "h"]
+    overcomplete_edges = [
+        ("a", "b"),
+        ("b", "c"),
+        ("c", "d"),
+        ("d", "e"),
+        ("f", "g"),
+        ("g", "h"),
+        ("h", "f"),
+    ]
+
+    node_costs = [
+        ("a", "A", 1),
+        ("b", "A", 5),
+        ("b", "B", 5),
+        ("c", "B", 1),
+        ("d", "B", 5),
+        ("d", "C", 5),
+        ("e", "C", 1),
+        ("f", "B", 2),
+        ("g", "B", 6),
+        ("g", "C", 6),
+        ("h", "B", 6),
+    ]
+
+    edge_costs = [
+        (("a", "b"), ("A", "B"), 1),
+        (("b", "c"), ("A", "B"), 1),
+        (("b", "c"), ("B", "C"), 5),
+        (("c", "d"), ("A", "B"), 5),
+        (("c", "d"), ("B", "C"), 1),
+        (("d", "e"), ("B", "C"), 1),
+        (("f", "g"), ("B", "C"), 3),
+        (("g", "h"), ("B", "C"), 3),
+        (("h", "f"), ("B", "C"), 3),
+    ]
+
+    expected_node_matchings = [
+        ("a", "A"),
+        ("b", None),
+        ("c", "B"),
+        ("d", None),
+        ("e", "C"),
+        ("f", None),
+        ("g", None),
+        ("h", None),
+    ]
+
+    expected_edge_matchings = [
+        (("a", "b"), ("A", "B")),
+        (("b", "c"), ("A", "B")),
+        (("c", "d"), ("B", "C")),
+        (("d", "e"), ("B", "C")),
+        (("h", "f"), None),
+        (("f", "g"), None),
+        (("g", "h"), None),
+    ]
+
+    expected_cost = 7
+
+    validate_matching(
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+    )
+
+
+def test_impossible():
+    """
+    A--B--C
+
+     a---b
+    """
+
+    target_nodes = ["A", "B", "C"]
+    target_edges = [("A", "B"), ("B", "C")]
+
+    overcomplete_nodes = ["a", "b"]
+    overcomplete_edges = [
+        ("a", "b"),
+    ]
+
+    node_costs = [
+        ("a", "A", 5),
+        ("a", "B", 5),
+        ("b", "B", 5),
+        ("b", "C", 5),
+    ]
+
+    edge_costs = [
+        (("a", "b"), ("A", "B"), 1),
+        (("a", "b"), ("B", "C"), 1),
+    ]
+
+    expected_node_matchings = []
+
+    expected_edge_matchings = []
+
+    expected_cost = float("inf")
+
+    with pytest.raises(ValueError):
+        validate_matching(
+            target_nodes,
+            target_edges,
+            overcomplete_nodes,
+            overcomplete_edges,
+            node_costs,
+            edge_costs,
+            expected_node_matchings,
+            expected_edge_matchings,
+            expected_cost,
         )
-        consensus.add_edges_from([("A", "B"), ("B", "C")])
 
-        skeleton = nx.Graph()
-        skeleton.add_nodes_from(
-            [
-                ("a", {"location": np.array([1, 0, 0])}),
-                ("b", {"location": np.array([1, 0, 5])}),
-                ("c", {"location": np.array([1, 0, 10])}),
-                ("d", {"location": np.array([1, 0, 15])}),
-                ("e", {"location": np.array([1, 0, 20])}),
-            ]
-        )
-        skeleton.add_edges_from([("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")])
 
-        match_graph_to_tree(
-            skeleton,
-            consensus,
-            match_distance_threshold=100,
-            match_attribute="matched_edge",
-        )
+def test_enforced_assignment():
+    """
+    A--B--C
 
-        self.assertEqual(skeleton.edges[("a", "b")].get("matched_edge"), ("A", "B"))
-        self.assertEqual(skeleton.edges[("b", "c")].get("matched_edge"), ("A", "B"))
-        self.assertEqual(skeleton.edges[("c", "d")].get("matched_edge"), ("B", "C"))
-        self.assertEqual(skeleton.edges[("d", "e")].get("matched_edge"), ("B", "C"))
+    a--b--c--d
 
-    def test_simple_long_chain(self):
+    enforce the suboptimal assignment of
+    b--c--d to A--B--C
+    """
 
-        # consensus graph:
-        #
-        #       A---------->B---------->C
-        #
-        # skeleton graph:
-        #
-        # a--b--c--d--e--f--g--h--i--j--k--l--m
-        #
-        # matching should not have too many or too few edge assignments
+    target_nodes = ["A", "B", "C"]
+    target_edges = [("A", "B"), ("B", "C")]
 
-        consensus = nx.DiGraph()
-        consensus.add_nodes_from(
-            [
-                ("A", {"location": np.array([0, 0, 10])}),
-                ("B", {"location": np.array([0, 0, 30])}),
-                ("C", {"location": np.array([0, 0, 50])}),
-            ]
-        )
-        consensus.add_edges_from([("A", "B"), ("B", "C")])
+    overcomplete_nodes = ["a", "b", "c", "d"]
+    overcomplete_edges = [
+        ("a", "b"),
+        ("b", "c"),
+        ("c", "d"),
+        ("d", "e"),
+    ]
 
-        skeleton = nx.Graph()
-        skeleton.add_nodes_from(
-            [
-                ("a", {"location": np.array([1, 0, 0])}),
-                ("b", {"location": np.array([1, 0, 5])}),
-                ("c", {"location": np.array([1, 0, 10])}),
-                ("d", {"location": np.array([1, 0, 15])}),
-                ("e", {"location": np.array([1, 0, 20])}),
-                ("f", {"location": np.array([1, 0, 25])}),
-                ("g", {"location": np.array([1, 0, 30])}),
-                ("h", {"location": np.array([1, 0, 35])}),
-                ("i", {"location": np.array([1, 0, 40])}),
-                ("j", {"location": np.array([1, 0, 45])}),
-                ("k", {"location": np.array([1, 0, 50])}),
-                ("l", {"location": np.array([1, 0, 55])}),
-                ("m", {"location": np.array([1, 0, 60])}),
-            ]
-        )
-        skeleton.add_edges_from(
-            [
-                ("a", "b"),
-                ("b", "c"),
-                ("c", "d"),
-                ("d", "e"),
-                ("e", "f"),
-                ("f", "g"),
-                ("g", "h"),
-                ("h", "i"),
-                ("i", "j"),
-                ("j", "k"),
-                ("k", "l"),
-                ("l", "m"),
-            ]
-        )
+    node_costs = [
+        ("a", "A", 1),
+        ("b", "A", 5),
+        ("b", "B", 1),
+        ("c", "B", 5),
+        ("c", "C", 1),
+        ("d", "C", 5),
+    ]
 
-        match_graph_to_tree(
-            skeleton,
-            consensus,
-            match_distance_threshold=100,
-            match_attribute="matched_edge",
-        )
+    edge_costs = [
+        (("a", "b"), ("A", "B"), 1),
+        (("b", "c"), ("A", "B"), 5),
+        (("b", "c"), ("B", "C"), 1),
+        (("c", "d"), ("B", "C"), 5),
+    ]
 
-        self.assertEqual(skeleton.edges[("a", "b")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges[("b", "c")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges[("c", "d")].get("matched_edge"), ("A", "B"))
-        self.assertEqual(skeleton.edges[("d", "e")].get("matched_edge"), ("A", "B"))
-        self.assertEqual(skeleton.edges[("e", "f")].get("matched_edge"), ("A", "B"))
-        self.assertEqual(skeleton.edges[("f", "g")].get("matched_edge"), ("A", "B"))
-        self.assertEqual(skeleton.edges[("g", "h")].get("matched_edge"), ("B", "C"))
-        self.assertEqual(skeleton.edges[("h", "i")].get("matched_edge"), ("B", "C"))
-        self.assertEqual(skeleton.edges[("i", "j")].get("matched_edge"), ("B", "C"))
-        self.assertEqual(skeleton.edges[("j", "k")].get("matched_edge"), ("B", "C"))
-        self.assertEqual(skeleton.edges[("k", "l")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges[("l", "m")].get("matched_edge"), None)
+    expected_node_matchings = [
+        ("a", None),
+        ("b", "A"),
+        ("c", "B"),
+        ("d", "C"),
+    ]
 
-    def test_simple_4_way(self):
+    expected_edge_matchings = [
+        (("a", "b"), None),
+        (("b", "c"), ("A", "B")),
+        (("c", "d"), ("B", "C")),
+    ]
 
-        # consensus graph:
-        #
-        #    A
-        #     \
-        #      \
-        # D<----X---->B
-        #        \
-        #         \
-        #          C
-        #
-        # skeleton graph:
-        #
-        #    a
-        #    |
-        #    b
-        #    | \
-        # c--d--e--f--g
-        #        \ |
-        #          h
-        #          |
-        #          i
-        #
-        # Matching should be able to match realistic 4 way junction
+    enforced_assignments = list(
+        itertools.chain(expected_node_matchings, expected_edge_matchings[1:])
+    )
 
-        consensus = nx.DiGraph()
-        consensus.add_nodes_from(
-            [
-                ("D", {"location": np.array([0, 0, 0])}),
-                ("B", {"location": np.array([0, 0, 20])}),
-                ("X", {"location": np.array([0, 0, 10])}),
-                ("A", {"location": np.array([0, -10, 5])}),
-                ("C", {"location": np.array([0, 10, 15])}),
-            ]
-        )
-        consensus.add_edges_from([("A", "X"), ("X", "B"), ("X", "C"), ("X", "D")])
+    expected_cost = 25
 
-        skeleton = nx.Graph()
-        skeleton.add_nodes_from(
-            [
-                ("c", {"location": np.array([1, 0, 0])}),
-                ("d", {"location": np.array([1, 0, 5])}),
-                ("g", {"location": np.array([1, 0, 20])}),
-                ("f", {"location": np.array([1, 0, 15])}),
-                ("e", {"location": np.array([1, 0, 10])}),
-                ("b", {"location": np.array([1, -5, 5])}),
-                ("a", {"location": np.array([1, -10, 5])}),
-                ("h", {"location": np.array([1, 5, 15])}),
-                ("i", {"location": np.array([1, 10, 15])}),
-            ]
-        )
-        skeleton.add_edges_from(
-            [
-                ("a", "b"),
-                ("b", "d"),
-                ("b", "e"),
-                ("c", "d"),
-                ("d", "e"),
-                ("e", "f"),
-                ("e", "h"),
-                ("f", "g"),
-                ("f", "h"),
-                ("h", "i"),
-            ]
-        )
-
-        match_graph_to_tree(
-            skeleton,
-            consensus,
-            match_distance_threshold=100,
-            match_attribute="matched_edge",
-        )
-
-        self.assertEqual(skeleton.edges()[("a", "b")].get("matched_edge"), ("A", "X"))
-        self.assertEqual(skeleton.edges()[("b", "d")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges()[("b", "e")].get("matched_edge"), ("A", "X"))
-        self.assertEqual(skeleton.edges()[("c", "d")].get("matched_edge"), ("X", "D"))
-        self.assertEqual(skeleton.edges()[("d", "e")].get("matched_edge"), ("X", "D"))
-        self.assertEqual(skeleton.edges()[("e", "f")].get("matched_edge"), ("X", "B"))
-        self.assertEqual(skeleton.edges()[("e", "h")].get("matched_edge"), ("X", "C"))
-        self.assertEqual(skeleton.edges()[("f", "g")].get("matched_edge"), ("X", "B"))
-        self.assertEqual(skeleton.edges()[("f", "h")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges()[("h", "i")].get("matched_edge"), ("X", "C"))
-
-    def test_confounding_chain(self):
-
-        # consensus graph:
-        #
-        # A---->B---->C
-        #
-        #
-        # skeleton graph:
-        #
-        #  a--b--c--d--e
-        #        |
-        #        f--h--i
-        #
-        # the optimal matching should not assign anything to extra chain
-
-        consensus = nx.DiGraph()
-        consensus.add_nodes_from(
-            [
-                ("A", {"location": np.array([0, 0, 0])}),
-                ("B", {"location": np.array([0, 0, 10])}),
-                ("C", {"location": np.array([0, 0, 20])}),
-            ]
-        )
-        consensus.add_edges_from([("A", "B"), ("B", "C")])
-
-        skeleton = nx.Graph()
-        skeleton.add_nodes_from(
-            [
-                ("a", {"location": np.array([1, 0, 0])}),
-                ("b", {"location": np.array([1, 0, 5])}),
-                ("c", {"location": np.array([1, 0, 10])}),
-                ("d", {"location": np.array([1, 0, 15])}),
-                ("e", {"location": np.array([1, 0, 20])}),
-                ("f", {"location": np.array([1, -1, 10])}),
-                ("h", {"location": np.array([1, -1, 15])}),
-                ("i", {"location": np.array([1, -1, 20])}),
-            ]
-        )
-        skeleton.add_edges_from(
-            [
-                ("a", "b"),
-                ("b", "c"),
-                ("c", "d"),
-                ("d", "e"),
-                ("c", "f"),
-                ("f", "h"),
-                ("h", "i"),
-            ]
-        )
-
-        match_graph_to_tree(
-            skeleton,
-            consensus,
-            match_distance_threshold=100,
-            match_attribute="matched_edge",
-        )
-
-        self.assertEqual(skeleton.edges[("a", "b")]["matched_edge"], ("A", "B"))
-        self.assertEqual(skeleton.edges[("b", "c")]["matched_edge"], ("A", "B"))
-        self.assertEqual(skeleton.edges[("c", "d")]["matched_edge"], ("B", "C"))
-        self.assertEqual(skeleton.edges[("d", "e")]["matched_edge"], ("B", "C"))
-        self.assertEqual(skeleton.edges[("c", "f")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges[("f", "h")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges[("h", "i")].get("matched_edge"), None)
-
-    def test_confounding_loop(self):
-
-        # consensus graph:
-        #
-        # A---->B---->C
-        #
-        #
-        # skeleton graph:
-        #
-        #  a--b--c--d--e
-        #
-        #        f--h
-        #        | /
-        #        i
-        #
-        # the optimal matching should not create a loop for extra reward
-
-        consensus = nx.DiGraph()
-        consensus.add_nodes_from(
-            [
-                ("A", {"location": np.array([0, 0, 0])}),
-                ("B", {"location": np.array([0, 0, 10])}),
-                ("C", {"location": np.array([0, 0, 20])}),
-            ]
-        )
-        consensus.add_edges_from([("A", "B"), ("B", "C")])
-
-        skeleton = nx.Graph()
-        skeleton.add_nodes_from(
-            [
-                ("a", {"location": np.array([1, 0, 0])}),
-                ("b", {"location": np.array([1, 0, 5])}),
-                ("c", {"location": np.array([1, 0, 10])}),
-                ("d", {"location": np.array([1, 0, 15])}),
-                ("e", {"location": np.array([1, 0, 20])}),
-                ("f", {"location": np.array([1, -1, 10])}),
-                ("h", {"location": np.array([1, -1, 15])}),
-                ("i", {"location": np.array([1, -2, 10])}),
-            ]
-        )
-        skeleton.add_edges_from(
-            [
-                ("a", "b"),
-                ("b", "c"),
-                ("c", "d"),
-                ("d", "e"),
-                ("f", "h"),
-                ("f", "i"),
-                ("h", "i"),
-            ]
-        )
-
-        match_graph_to_tree(
-            skeleton,
-            consensus,
-            match_distance_threshold=100,
-            match_attribute="matched_edge",
-        )
-
-        self.assertEqual(skeleton.edges[("a", "b")]["matched_edge"], ("A", "B"))
-        self.assertEqual(skeleton.edges[("b", "c")]["matched_edge"], ("A", "B"))
-        self.assertEqual(skeleton.edges[("c", "d")]["matched_edge"], ("B", "C"))
-        self.assertEqual(skeleton.edges[("d", "e")]["matched_edge"], ("B", "C"))
-        self.assertEqual(skeleton.edges[("f", "h")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges[("f", "i")].get("matched_edge"), None)
-        self.assertEqual(skeleton.edges[("h", "i")].get("matched_edge"), None)
-
-    def test_cheap_loops(self):
-
-        # consensus graph:
-        #
-        # A---->B---->C---->D
-        #
-        #
-        # skeleton graph:
-        #
-        #        l--m--n
-        #      /         \
-        #     k           o
-        #     |           |
-        #  a--b--c--d--e--f--g
-        #        |     |
-        #        h     j
-        #         \   /
-        #           i
-        #
-        # the optimal matching should not create a loop for extra reward.
-
-        consensus = nx.DiGraph()
-        consensus.add_nodes_from(
-            [
-                ("A", {"location": np.array([0, 0, 0])}),
-                ("B", {"location": np.array([0, 0, 10])}),
-                ("C", {"location": np.array([0, 0, 20])}),
-                ("D", {"location": np.array([0, 0, 30])}),
-            ]
-        )
-        consensus.add_edges_from([("A", "B"), ("B", "C"), ("C", "D")])
-
-        skeleton = nx.Graph()
-        skeleton.add_nodes_from(
-            [
-                ("a", {"location": np.array([1, 0, 0])}),
-                ("b", {"location": np.array([1, 0, 5])}),
-                ("c", {"location": np.array([1, 0, 10])}),
-                ("d", {"location": np.array([1, 0, 15])}),
-                ("e", {"location": np.array([1, 0, 20])}),
-                ("f", {"location": np.array([1, 0, 25])}),
-                ("g", {"location": np.array([1, 0, 30])}),
-                ("h", {"location": np.array([1, 0.4, 10])}),
-                ("i", {"location": np.array([1, 10, 15])}),
-                ("j", {"location": np.array([1, 0.4, 20])}),
-                ("k", {"location": np.array([1, -0.3, 5])}),
-                ("l", {"location": np.array([1, -10, 10])}),
-                ("m", {"location": np.array([1, -10, 15])}),
-                ("n", {"location": np.array([1, -10, 20])}),
-                ("o", {"location": np.array([1, -0.3, 25])}),
-            ]
-        )
-        skeleton.add_edges_from(
-            [
-                ("a", "b"),
-                ("b", "c"),
-                ("c", "d"),
-                ("d", "e"),
-                ("e", "f"),
-                ("f", "g"),
-                ("c", "h"),
-                ("e", "j"),
-                ("h", "i"),
-                ("i", "j"),
-                ("b", "k"),
-                ("f", "o"),
-                ("k", "l"),
-                ("l", "m"),
-                ("m", "n"),
-                ("n", "o"),
-            ]
-        )
-
-        matcher, optimized_score = match_graph_to_tree(
-            skeleton,
-            consensus,
-            match_distance_threshold=100,
-            match_attribute="matched_edge",
-        )
-
-        expected_tree = {
-            ("a", "b"): ("A", "B"),
-            ("b", "c"): ("A", "B"),
-            ("c", "d"): ("B", "C"),
-            ("d", "e"): ("B", "C"),
-            ("e", "f"): ("C", "D"),
-            ("f", "g"): ("C", "D"),
-        }
-
-        expected_nones = {
-            ("c", "h"): None,
-            ("e", "j"): None,
-            ("h", "i"): None,
-            ("i", "j"): None,
-            ("b", "k"): None,
-            ("f", "o"): None,
-            ("k", "l"): None,
-            ("l", "m"): None,
-            ("m", "n"): None,
-            ("n", "o"): None,
-        }
-
-        matcher.enforce_expected_assignments(expected_tree)
-        _, expected_tree_score = matcher.match()
-
-        self.assertLessEqual(expected_tree_score, optimized_score)
-
-        for graph_e, tree_e in itertools.chain(
-            expected_tree.items(), expected_nones.items()
-        ):
-            self.assertEqual(skeleton.edges[graph_e].get("matched_edge"), tree_e)
+    validate_matching(
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+        enforced_assignments=enforced_assignments,
+    )
 
