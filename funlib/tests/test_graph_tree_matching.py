@@ -76,7 +76,6 @@ def test_simple_chain():
 
     a--b--c--d--e
     """
-    target = nx.DiGraph()
     target_nodes = ["A", "B", "C"]
     target_edges = [("A", "B"), ("B", "C")]
 

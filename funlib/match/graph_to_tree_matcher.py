@@ -7,20 +7,21 @@ import rtree
 import logging
 import itertools
 from copy import deepcopy
-from typing import Hashable, Tuple, List, Dict, Iterable, Optional
+from typing import Hashable, Tuple, List, Dict, Iterable, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-Edge = Tuple[Hashable, Hashable]
-
+Node = Hashable
+Edge = Tuple[Node, Node]
+Matchable = Union[Node, Edge]
 
 class GraphToTreeMatcher:
     def __init__(
         self,
         graph: nx.Graph,
         tree: nx.DiGraph,
-        node_match_costs: Iterable[Tuple[Hashable, Hashable, float]],
-        edge_match_costs: Iterable[Tuple[Hashable, Hashable, float]],
+        node_match_costs: Iterable[Tuple[Node, Node, float]],
+        edge_match_costs: Iterable[Tuple[Edge, Edge, float]],
         use_gurobi: bool = True,
     ):
         if isinstance(graph, nx.DiGraph):
@@ -54,35 +55,33 @@ class GraphToTreeMatcher:
         self.__create_constraints()
         self.__create_objective()
 
-    def g2ts(self, target: Hashable) -> Dict:
+    def g2ts(self, target: Matchable) -> Dict:
         """
         Get all possible matches from G to T for a given target
         in the form of a dictionary
         """
         return self.g2t_match_indicators.get(target, {})
 
-    def t2gs(self, target: Hashable) -> Dict:
+    def t2gs(self, target: Matchable) -> Dict:
         """
         Get all possible matches from T to G for a given target
         in the form of a dictionary
         """
         return self.t2g_match_indicators.get(target, {})
 
-    def t2g(self, target: Hashable, query: Hashable) -> Optional[int]:
+    def t2g(self, target: Matchable, query: Matchable) -> Optional[int]:
         """
         Get the indicator for a target (in T), query pair (in G). None if it doesn't exist.
         """
         return self.t2gs(target).get(query, None)
 
-    def g2t(self, target: Hashable, query: Hashable) -> Optional[int]:
+    def g2t(self, target: Matchable, query: Matchable) -> Optional[int]:
         """
         Get the indicator for a target (in G), query (in T) pair. None if it doesn't exist.
         """
         return self.t2g(query, target)
 
-    def match(
-        self,
-    ) -> Tuple[List[Tuple[Hashable, Hashable]], List[Tuple[Hashable, Hashable]], float]:
+    def match(self,) -> Tuple[List[Tuple[Node, Node]], List[Tuple[Edge, Edge]], float]:
         """
         Return a Tuple containing a list of node matching tuples, a list of edge matching
         tuples, and a float indicating the cost of the matching.
@@ -105,13 +104,10 @@ class GraphToTreeMatcher:
 
         node_matches = []
         for target in self.graph.nodes():
-            matched = False
             for match, ind in self.g2ts(target).items():
                 if solution[ind] > 0.5:
                     node_matches.append((target, match))
                     matched = True
-            if not matched:
-                node_matches.append((target, None))
 
         return node_matches, edge_matches, self._score_solution(solution)
 
@@ -144,7 +140,7 @@ class GraphToTreeMatcher:
 
         return solution
 
-    def _score_solution(self, solution):
+    def _score_solution(self, solution) -> float:
         """
         Get the total cost of a particular solution
         """
@@ -398,7 +394,7 @@ class GraphToTreeMatcher:
             self.objective.set_coefficient(i, c)
 
     def enforce_expected_assignments(
-        self, expected_assignments: Iterable[Tuple[Hashable, Hashable]]
+        self, expected_assignments: Iterable[Tuple[Matchable, Matchable]]
     ):
         """
         Force a specific set of matchings to be made in any solution.
