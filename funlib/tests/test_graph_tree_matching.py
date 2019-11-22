@@ -40,7 +40,8 @@ def gurobi_installed_with_license():
 @pytest.mark.parametrize(
     "use_gurobi", [pytest.param(True, marks=gurobi_installed_with_license()), False]
 )
-def test_enforced_assignment(use_gurobi):
+@pytest.mark.parametrize("directed_overcomplete", [True, False])
+def test_enforced_assignment(use_gurobi, directed_overcomplete):
     """
     target graph:
 
@@ -101,7 +102,7 @@ def test_enforced_assignment(use_gurobi):
         )
 
     test_valid_matching(
-        enforced_long_chain, use_gurobi, enforced_assignments=enforced_assignments
+        enforced_long_chain, use_gurobi, directed_overcomplete, enforced_assignments=enforced_assignments
     )
 
 
@@ -119,7 +120,10 @@ def test_enforced_assignment(use_gurobi):
 @pytest.mark.parametrize(
     "use_gurobi", [pytest.param(True, marks=gurobi_installed_with_license()), False]
 )
-def test_valid_matching(data_func, use_gurobi, enforced_assignments=[]):
+@pytest.mark.parametrize("directed_overcomplete", [True, False])
+def test_valid_matching(
+    data_func, use_gurobi, directed_overcomplete, enforced_assignments=[]
+):
     (
         target_nodes,
         target_edges,
@@ -135,7 +139,10 @@ def test_valid_matching(data_func, use_gurobi, enforced_assignments=[]):
     target.add_nodes_from(target_nodes)
     target.add_edges_from(target_edges)
 
-    overcomplete = nx.Graph()
+    if directed_overcomplete:
+        overcomplete = nx.DiGraph()
+    else:
+        overcomplete = nx.Graph()
     overcomplete.add_nodes_from(overcomplete_nodes)
     overcomplete.add_edges_from(overcomplete_edges)
 
@@ -158,7 +165,8 @@ def test_valid_matching(data_func, use_gurobi, enforced_assignments=[]):
 @pytest.mark.parametrize(
     "use_gurobi", [pytest.param(True, marks=gurobi_installed_with_license()), False]
 )
-def test_invalid_matching(data_func, use_gurobi):
+@pytest.mark.parametrize("directed_overcomplete", [True, False])
+def test_invalid_matching(data_func, use_gurobi, directed_overcomplete):
     (
         target_nodes,
         target_edges,
@@ -171,7 +179,10 @@ def test_invalid_matching(data_func, use_gurobi):
     target.add_nodes_from(target_nodes)
     target.add_edges_from(target_edges)
 
-    overcomplete = nx.Graph()
+    if directed_overcomplete:
+        overcomplete = nx.DiGraph()
+    else:
+        overcomplete = nx.Graph()
     overcomplete.add_nodes_from(overcomplete_nodes)
     overcomplete.add_edges_from(overcomplete_edges)
 
