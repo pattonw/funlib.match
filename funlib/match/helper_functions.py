@@ -34,8 +34,8 @@ def build_matched(
 def match(
     graph: nx.Graph,
     tree: nx.DiGraph,
-    node_match_costs: List[Tuple[Node, Node]],
-    edge_match_costs: List[Tuple[Edge, Edge]],
+    node_match_costs: List[Tuple[Node, Node, float]],
+    edge_match_costs: List[Tuple[Edge, Edge, float]],
     use_gurobi=True,
 ) -> nx.Graph:
     node_matchings, edge_matchings, _ = GraphToTreeMatcher(
