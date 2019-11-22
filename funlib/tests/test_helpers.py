@@ -1,79 +1,68 @@
 from funlib.match.helper_functions import match
 
 import networkx as nx
+import pytest
+
+from .test_graph_tree_matching import gurobi_installed_with_license
+from .valid_matchings import (
+    simple_4_branch,
+    simple_chain,
+    short_chain,
+    long_chain,
+    confounding_chain,
+    confounding_loop,
+)
 
 
-def test_build_matched():
-    """
-    target graph:
+@pytest.mark.parametrize(
+    "data_func",
+    [
+        simple_chain,
+        short_chain,
+        long_chain,
+        simple_4_branch,
+        confounding_chain,
+        confounding_loop,
+    ],
+)
+@pytest.mark.parametrize(
+    "use_gurobi", [pytest.param(True, marks=gurobi_installed_with_license()), False]
+)
+@pytest.mark.parametrize("directed_overcomplete", [True, False])
+def test_valid_matching(
+    data_func, use_gurobi, directed_overcomplete, enforced_assignments=[]
+):
+    (
+        target_nodes,
+        target_edges,
+        overcomplete_nodes,
+        overcomplete_edges,
+        node_costs,
+        edge_costs,
+        expected_node_matchings,
+        expected_edge_matchings,
+        expected_cost,
+    ) = data_func()
 
-       A---->B---->C
-
-    overcomplete graph:
-
-    a--b--c--d--e--f--g
-    """
     target = nx.DiGraph()
-    target.add_nodes_from(["A", "B", "C"])
-    target.add_edges_from([("A", "B"), ("B", "C")])
+    target.add_nodes_from(target_nodes)
+    target.add_edges_from(target_edges)
 
-    overcomplete = nx.Graph()
-    overcomplete.add_nodes_from(["a", "b", "c", "d", "e", "f", "g"])
-    overcomplete.add_edges_from(
-        [("a", "b"), ("b", "c"), ("c", "d"), ("d", "e"), ("e", "f"), ("f", "g"),]
-    )
+    if directed_overcomplete:
+        overcomplete = nx.DiGraph()
+    else:
+        overcomplete = nx.Graph()
+    overcomplete.add_nodes_from(overcomplete_nodes)
+    overcomplete.add_edges_from(overcomplete_edges)
 
-    node_costs = [
-        ("a", "A", 5),
-        ("b", "A", 1),
-        ("c", "A", 5),
-        ("c", "B", 5),
-        ("d", "B", 1),
-        ("e", "B", 5),
-        ("e", "C", 5),
-        ("f", "C", 1),
-        ("g", "A", 5),
-    ]
-
-    edge_costs = [
-        (("a", "b"), ("A", "B"), 5),
-        (("b", "c"), ("A", "B"), 1),
-        (("c", "d"), ("A", "B"), 1),
-        (("c", "d"), ("B", "C"), 5),
-        (("d", "e"), ("A", "B"), 5),
-        (("d", "e"), ("B", "C"), 1),
-        (("e", "f"), ("B", "C"), 1),
-        (("f", "g"), ("B", "C"), 5),
-    ]
-
-    expected_node_matchings = [
-        ("a", None),
-        ("b", "A"),
-        ("c", None),
-        ("d", "B"),
-        ("e", None),
-        ("f", "C"),
-        ("g", None),
-    ]
-
-    expected_edge_matchings = [
-        (("a", "b"), None),
-        (("b", "c"), ("A", "B")),
-        (("c", "d"), ("A", "B")),
-        (("d", "e"), ("B", "C")),
-        (("e", "f"), ("B", "C")),
-        (("f", "g"), None),
-    ]
-
-    matched = match(overcomplete, target, node_costs, edge_costs, use_gurobi=True)
-    matched2 = match(overcomplete, target, node_costs, edge_costs, use_gurobi=False)
+    matched = match(overcomplete, target, node_costs, edge_costs, use_gurobi=use_gurobi)
 
     for node, m in expected_node_matchings:
         if m is not None:
-            assert node in matched.nodes() and node in matched2.nodes()
-            
+            assert node in matched.nodes()
+
     for edge, m in expected_edge_matchings:
         if m is None:
-            assert edge not in matched.edges() and edge not in matched2.edges()
+            assert edge not in matched.edges()
         else:
-            assert edge in matched.edges() and edge in matched2.edges()
+            assert edge in matched.edges()
