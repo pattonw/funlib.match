@@ -1,8 +1,5 @@
 import pylp
-import numpy as np
 import networkx as nx
-from scipy.spatial import cKDTree
-import rtree
 
 import logging
 import itertools
@@ -14,6 +11,7 @@ logger = logging.getLogger(__name__)
 Node = Hashable
 Edge = Tuple[Node, Node]
 Matchable = Union[Node, Edge]
+
 
 class GraphToTreeMatcher:
     def __init__(

@@ -12,9 +12,7 @@ Installation
 
 Installation is best done through **make install** or **make install-dev**.
 Most of the requirements can be installed through pip, except pylp which must
-be installed with *conda install -c funkey pylp* and rtree which must be
-installed through *conda install rtree* to properly install the C spatial
-libraries.
+be installed with *conda install -c funkey pylp*.
 
 Implementation
 ==============
@@ -62,7 +60,7 @@ Constraints
     *s* if *s* is not None, else 2.
 
 Constraints 6 and 7 were added to enforce topologically accurate "chains".
-Shese are cases where 1 edge in *S* is very long, and is best represented
+These are cases where 1 edge in *S* is very long, and is best represented
 by a series of edges in *G*.
 Constraint 6 is redundant to 4 and 5 on matched vertices, but on unmatched
 vertices, it enforces a 1-1 mapping from matched targeting edges to matched
@@ -70,3 +68,44 @@ originating edges.
 Constraint 7 eliminates the possibility of crossovers where one unmatched
 node has multiple chains passing through it. Note that this constraint in
 combination with 4 and 5, ensure that the *n* in 6 is always 0.
+
+Usage
+=====
+
+```
+import networkx as nx
+from funlib.match.helper_functions import match
+
+# Create your target graph
+target = nx.DiGraph()
+target.add_nodes_from(["A", "B", "C"])
+target.add_edges_from([("A", "B"), ("B", "C")])
+
+# Create your overcomplete graph
+overcomplete = nx.Graph()
+overcomplete.add_nodes_from(["a", "b", "c", "d", "e"])
+overcomplete.add_edges_from([("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")])
+
+# Define your matching costs in an iterable of triplets
+node_costs = [
+    ("a", "A", 1),
+    ("b", "A", 5),
+    ("b", "B", 5),
+    ("c", "B", 1),
+    ("d", "B", 5),
+    ("d", "C", 5),
+    ("e", "C", 1),
+]
+
+edge_costs = [
+    (("a", "b"), ("A", "B"), 1),
+    (("b", "c"), ("A", "B"), 1),
+    (("b", "c"), ("B", "C"), 5),
+    (("c", "d"), ("A", "B"), 5),
+    (("c", "d"), ("B", "C"), 1),
+    (("d", "e"), ("B", "C"), 1),
+]
+
+matched = match(overcomplete, target, node_costs, edge_costs)
+```
+
