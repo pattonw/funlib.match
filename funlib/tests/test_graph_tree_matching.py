@@ -31,7 +31,7 @@ def gurobi_installed_with_license():
         solver.set_constraints(constraints)
         solution, message = solver.solve()
         success = True
-    except ValueError:
+    except RuntimeError:
         success = False
 
     return pytest.mark.skipif(not success, reason="Requires Gurobi License")
