@@ -72,40 +72,39 @@ combination with 4 and 5, ensure that the *n* in 6 is always 0.
 Usage
 =====
 
-```
-import networkx as nx
-from funlib.match.helper_functions import match
+.. codeblock:: python
+  import networkx as nx
+  from funlib.match.helper_functions import match
 
-# Create your target graph
-target = nx.DiGraph()
-target.add_nodes_from(["A", "B", "C"])
-target.add_edges_from([("A", "B"), ("B", "C")])
+  # Create your target graph
+  target = nx.DiGraph()
+  target.add_nodes_from(["A", "B", "C"])
+  target.add_edges_from([("A", "B"), ("B", "C")])
 
-# Create your overcomplete graph
-overcomplete = nx.Graph()
-overcomplete.add_nodes_from(["a", "b", "c", "d", "e"])
-overcomplete.add_edges_from([("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")])
+  # Create your overcomplete graph
+  overcomplete = nx.Graph()
+  overcomplete.add_nodes_from(["a", "b", "c", "d", "e"])
+  overcomplete.add_edges_from([("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")])
 
-# Define your matching costs in an iterable of triplets
-node_costs = [
-    ("a", "A", 1),
-    ("b", "A", 5),
-    ("b", "B", 5),
-    ("c", "B", 1),
-    ("d", "B", 5),
-    ("d", "C", 5),
-    ("e", "C", 1),
-]
+  # Define your matching costs in an iterable of triplets
+  node_costs = [
+      ("a", "A", 1),
+      ("b", "A", 5),
+      ("b", "B", 5),
+      ("c", "B", 1),
+      ("d", "B", 5),
+      ("d", "C", 5),
+      ("e", "C", 1),
+  ]
 
-edge_costs = [
-    (("a", "b"), ("A", "B"), 1),
-    (("b", "c"), ("A", "B"), 1),
-    (("b", "c"), ("B", "C"), 5),
-    (("c", "d"), ("A", "B"), 5),
-    (("c", "d"), ("B", "C"), 1),
-    (("d", "e"), ("B", "C"), 1),
-]
+  edge_costs = [
+      (("a", "b"), ("A", "B"), 1),
+      (("b", "c"), ("A", "B"), 1),
+      (("b", "c"), ("B", "C"), 5),
+      (("c", "d"), ("A", "B"), 5),
+      (("c", "d"), ("B", "C"), 1),
+      (("d", "e"), ("B", "C"), 1),
+  ]
 
-matched = match(overcomplete, target, node_costs, edge_costs)
-```
+  matched = match(overcomplete, target, node_costs, edge_costs)
 
