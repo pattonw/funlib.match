@@ -22,6 +22,11 @@ def simple_chain():
         ("d", "B", 5),
         ("d", "C", 5),
         ("e", "C", 1),
+        ("a", None, 0),
+        ("b", None, 0),
+        ("c", None, 0),
+        ("d", None, 0),
+        ("e", None, 0),
     ]
 
     edge_costs = [
@@ -85,6 +90,9 @@ def short_chain():
         ("b", "B", 1),
         ("c", "B", 5),
         ("c", "C", 5),
+        ("a", None, 0),
+        ("b", None, 0),
+        ("c", None, 0),
     ]
 
     edge_costs = [
@@ -156,6 +164,13 @@ def long_chain():
         ("e", "C", 5),
         ("f", "C", 1),
         ("g", "A", 5),
+        ("a", None, 0),
+        ("b", None, 0),
+        ("c", None, 0),
+        ("d", None, 0),
+        ("e", None, 0),
+        ("f", None, 0),
+        ("g", None, 0),
     ]
 
     edge_costs = [
@@ -209,10 +224,10 @@ def simple_4_branch():
 
           A
           |
-          |
+          v
     B<----X---->C
           |
-          |
+          v
           D
 
     overcomplete graph:
@@ -258,6 +273,15 @@ def simple_4_branch():
         ("h", "X", 5),
         ("h", "D", 5),
         ("i", "D", 1),
+        ("a", None, 0),
+        ("b", None, 0),
+        ("c", None, 0),
+        ("d", None, 0),
+        ("e", None, 0),
+        ("f", None, 0),
+        ("g", None, 0),
+        ("h", None, 0),
+        ("i", None, 0),
     ]
 
     edge_costs = [
@@ -363,6 +387,14 @@ def confounding_chain():
         ("g", "B", 6),
         ("g", "C", 6),
         ("h", "C", 3),
+        ("a", None, 0),
+        ("b", None, 0),
+        ("c", None, 0),
+        ("d", None, 0),
+        ("e", None, 0),
+        ("f", None, 0),
+        ("g", None, 0),
+        ("h", None, 0),
     ]
 
     edge_costs = [
@@ -459,6 +491,14 @@ def confounding_loop():
         ("g", "B", 6),
         ("g", "C", 6),
         ("h", "B", 6),
+        ("a", None, 0),
+        ("b", None, 0),
+        ("c", None, 0),
+        ("d", None, 0),
+        ("e", None, 0),
+        ("f", None, 0),
+        ("g", None, 0),
+        ("h", None, 0),
     ]
 
     edge_costs = [

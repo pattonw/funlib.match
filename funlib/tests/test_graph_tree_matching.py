@@ -19,22 +19,9 @@ from .valid_matchings import (
 
 from .invalid_matchings import not_overcomplete
 
+from .realistic import large
 
-def gurobi_installed_with_license():
-    try:
-        solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
-        solver.initialize(1, pylp.VariableType.Binary)
-        objective = pylp.LinearObjective(1)
-        objective.set_coefficient(1, 1)
-        solver.set_objective(objective)
-        constraints = pylp.LinearConstraints()
-        solver.set_constraints(constraints)
-        solution, message = solver.solve()
-        success = True
-    except RuntimeError:
-        success = False
-
-    return pytest.mark.skipif(not success, reason="Requires Gurobi License")
+from .gurobi_check import gurobi_installed_with_license
 
 
 @pytest.mark.parametrize(
@@ -102,7 +89,10 @@ def test_enforced_assignment(use_gurobi, directed_overcomplete):
         )
 
     test_valid_matching(
-        enforced_long_chain, use_gurobi, directed_overcomplete, enforced_assignments=enforced_assignments
+        enforced_long_chain,
+        use_gurobi,
+        directed_overcomplete,
+        enforced_assignments=enforced_assignments,
     )
 
 
@@ -112,9 +102,9 @@ def test_enforced_assignment(use_gurobi, directed_overcomplete):
         simple_chain,
         short_chain,
         long_chain,
-        simple_4_branch,
         confounding_chain,
         confounding_loop,
+        simple_4_branch,
     ],
 )
 @pytest.mark.parametrize(

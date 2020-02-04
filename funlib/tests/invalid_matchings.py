@@ -21,6 +21,8 @@ def not_overcomplete():
         ("a", "B", 5),
         ("b", "B", 5),
         ("b", "C", 5),
+        ("a", None, 0),
+        ("b", None, 0),
     ]
 
     edge_costs = [

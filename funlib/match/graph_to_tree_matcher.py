@@ -6,6 +6,8 @@ import itertools
 from copy import deepcopy
 from typing import Hashable, Tuple, List, Dict, Iterable, Optional, Union
 
+from .get_constraints import get_constraints
+
 logger = logging.getLogger(__name__)
 
 Node = Hashable
@@ -21,6 +23,7 @@ class GraphToTreeMatcher:
         node_match_costs: Iterable[Tuple[Node, Node, float]],
         edge_match_costs: Iterable[Tuple[Edge, Edge, float]],
         use_gurobi: bool = True,
+        create_constraints: bool = True,
     ):
         if isinstance(graph, nx.DiGraph):
             self.undirected_graph = graph.to_undirected()
@@ -43,14 +46,15 @@ class GraphToTreeMatcher:
 
         self.use_gurobi = use_gurobi
 
-        self.node_match_costs = node_match_costs
-        self.edge_match_costs = edge_match_costs
+        self.node_match_costs = list(node_match_costs)
+        self.edge_match_costs = list(edge_match_costs)
 
         self.objective = None
-        self.constraints = None
+        self.constraints = pylp.LinearConstraints()
 
         self.__create_inidicators()
-        self.__create_constraints()
+        if create_constraints:
+            self.__create_constraints()
         self.__create_objective()
 
     def g2ts(self, target: Matchable) -> Dict:
@@ -160,204 +164,31 @@ class GraphToTreeMatcher:
 
         self.num_variables = 0
 
-        no_matches = [(graph_n, None, 0) for graph_n in self.graph.nodes()]
-
         self.g2t_match_indicators = {}
         self.t2g_match_indicators = {}
         self.match_indicator_costs = []
-        self.num_variables = (
-            len(no_matches) + len(self.node_match_costs) + len(self.edge_match_costs)
-        )
+        self.num_variables = len(self.node_match_costs) + len(self.edge_match_costs)
 
-        for i, (u, v, cost) in enumerate(
-            itertools.chain(self.node_match_costs, self.edge_match_costs, no_matches)
+        for i, (source, target, cost) in enumerate(
+            itertools.chain(self.node_match_costs, self.edge_match_costs)
         ):
 
-            u2t_node_indicators = self.g2t_match_indicators.setdefault(u, {})
-            u2t_node_indicators[v] = i
-            v2g_node_indicators = self.t2g_match_indicators.setdefault(v, {})
-            v2g_node_indicators[u] = i
+            u2t_node_indicators = self.g2t_match_indicators.setdefault(source, {})
+            u2t_node_indicators[target] = i
+            v2g_node_indicators = self.t2g_match_indicators.setdefault(target, {})
+            v2g_node_indicators[source] = i
 
             self.match_indicator_costs.append(cost)
 
-    def __add_one_to_one_t2g_node_constraint(self):
-        """
-        (2b) Every node in T must match to exactly one node in G
-        """
-        for tree_n in self.tree.nodes():
-            constraint = pylp.LinearConstraint()
-            for match_indicator in self.t2gs(tree_n).values():
-                constraint.set_coefficient(match_indicator, 1)
-            constraint.set_relation(pylp.Relation.Equal)
-            constraint.set_value(1)
-            self.constraints.add(constraint)
-
-    def __add_many_to_one_t2g_edge_constraint(self):
-        """
-        modified
-        (2c): Every edge in T must match to **at least one** edge in G
-
-        For strict subgraph isomorphisms, this would be exactly 1,
-            but we want to allow "chains"
-        """
-
-        for tree_e in self.tree.edges():
-
-            constraint = pylp.LinearConstraint()
-            for match_indicator in self.t2gs(tree_e).values():
-                constraint.set_coefficient(match_indicator, -1)
-            constraint.set_relation(pylp.Relation.LessEqual)
-            constraint.set_value(-1)
-            self.constraints.add(constraint)
-
-    def __add_g_node_must_match_constraint(self):
-        """
-        modified
-        (2d) Every node in G must match
-
-        A possible match for every node in G is None
-        """
-        for graph_n in self.graph.nodes():
-            logger.debug(
-                f"2d) {graph_n} must match to one of {list(self.g2ts(graph_n).keys())}"
-            )
-            constraint = pylp.LinearConstraint()
-            for match_indicator in self.g2ts(graph_n).values():
-                constraint.set_coefficient(match_indicator, 1)
-            constraint.set_relation(pylp.Relation.Equal)
-            constraint.set_value(1)
-            self.constraints.add(constraint)
-
-    def __add_branch_topology_constraint(self):
-        """
-        For every pair of matched nodes j, k in V(G), V(T),
-            (2e) Every edge targeting k in T must match to an edge targeting j in G
-            (2f) Every edge originating from k in T must match to an edge originating from j in G
-        """
-        for graph_n in self.graph.nodes():
-            tree_nodes = [x for x in self.g2ts(graph_n).keys() if x is not None]
-            for tree_n in tree_nodes:
-                node_match_indicator = self.g2t(graph_n, tree_n)
-
-                # (2e)
-                for tree_out_e in self.tree.out_edges(tree_n):
-                    logger.debug(
-                        f"2e) Out edge of {graph_n} must match to {tree_out_e} if {graph_n} matches {tree_n}"
-                    )
-
-                    constraint = pylp.LinearConstraint()
-                    constraint.set_coefficient(node_match_indicator, 1)
-                    for graph_out_e in self.graph.out_edges(graph_n):
-                        g2t_e_indicator = self.g2t(graph_out_e, tree_out_e)
-                        if g2t_e_indicator is not None:
-                            constraint.set_coefficient(g2t_e_indicator, -1)
-                    # Note we use LessEqual so that if node_match_indicator = 0, which will often be
-                    # the case, we still allow matching.
-                    constraint.set_relation(pylp.Relation.LessEqual)
-                    constraint.set_value(0)
-                    self.constraints.add(constraint)
-
-                # (2f)
-                for tree_in_e in self.tree.in_edges(tree_n):
-                    logger.debug(
-                        f"2f) In edge of {graph_n} must match to {tree_in_e} if {graph_n} matches {tree_n}"
-                    )
-
-                    constraint = pylp.LinearConstraint()
-                    constraint.set_coefficient(node_match_indicator, 1)
-                    for graph_in_e in self.graph.in_edges(graph_n):
-                        g2t_e_indicator = self.g2t(graph_in_e, tree_in_e)
-                        if g2t_e_indicator is not None:
-                            constraint.set_coefficient(g2t_e_indicator, -1)
-                    constraint.set_relation(pylp.Relation.LessEqual)
-                    constraint.set_value(0)
-                    self.constraints.add(constraint)
-
-    def __add_solid_chain_constraint(self):
-        """
-        EXTRA CONSTRAINT, NOT FROM PAPER:
-        The previous constraints are enough to cover isomorphisms, but we need to model chains
-        in G representing edges in S
-        Consider:
-        
-        T:      A---------------------------------------B
-        G:      a--b--c---------------------------d--e--f
-
-        Under previous constraints, matching AB to ab and ef would be sufficient.
-
-        Consider a node i in G and an edge kl in T. 
-        If i matches to k, then we know
-        there should be exactly 1 edge originating from i that matches to kl, and 0
-        edges targeting i should match to kl.
-        Similarly if i matches to l, then there should be exactly 1 edge targeting i
-        that matches to kl, and 0 edges originating from i should match to kl.
-        Finally, if i matches to neither k nor l, then to maintain a chain, we must
-        have exactly 1 edge originating from i match to kl *and* exactly 1 edge
-        targeting i to match to kl.
-        """
-
-        for graph_n in self.graph.nodes():
-
-            possible_edges = set(
-                tree_e
-                for tree_n in self.g2ts(graph_n)
-                for tree_e in self.tree.edges(tree_n)
-            )
-            for tree_e in possible_edges:
-                equality_constraint = pylp.LinearConstraint()
-                for graph_in_e in self.graph.in_edges(graph_n):
-                    indicator = self.g2t(graph_in_e, tree_e)
-                    if indicator is not None:
-                        # -1 if an in edge matches
-                        equality_constraint.set_coefficient(indicator, -1)
-                for graph_out_e in self.graph.out_edges(graph_n):
-                    indicator = self.g2t(graph_out_e, tree_e)
-                    if indicator is not None:
-                        # +1 if an out edge matches
-                        equality_constraint.set_coefficient(indicator, 1)
-
-                for tree_n, tree_n_indicator in self.g2ts(graph_n).items():
-                    # tree_e must be an out edge
-                    if tree_n == tree_e[0]:
-                        equality_constraint.set_coefficient(tree_n_indicator, -1)
-                    # tree_e must be an in edge
-                    if tree_n == tree_e[1]:
-                        equality_constraint.set_coefficient(tree_n_indicator, 1)
-
-                equality_constraint.set_relation(pylp.Relation.Equal)
-                equality_constraint.set_value(0)
-                self.constraints.add(equality_constraint)
-
-    def __add_degree_constraint(self):
-        """
-        Now that we allow chains, it is possible that multiple
-        chains pass through the same node, or a chain might pass through
-        a branch point. To avoid this we add a degree constraint.
-
-        given x_ij for all i in V(G) and j in V(T)
-        given y_ab_cd for all (a, b) in E(G) and (c, d) in E(T)
-        let degree(None) = 2
-        For every node i in V(G)
-          let N = SUM(degree(c)*x_ic) for all c in V(T) Union None
-          let y = SUM(y_ai_cd) + SUM(y_ia_cd)
-              for all a adjacent to i, and all (c,d) in E(T)
-          y - N <= 0
-        """
-        for graph_n in self.graph.nodes():
-            degree_constraint = pylp.LinearConstraint()
-            for tree_n, tree_n_indicator in self.g2ts(graph_n).items():
-                d = 2 if tree_n is None else self.tree.degree(tree_n)
-                degree_constraint.set_coefficient(tree_n_indicator, -d)
-            # TODO: support graph being a nx.DiGraph
-            for neighbor in self.graph.neighbors(graph_n):
-                for adj_edge_indicator in self.g2ts((graph_n, neighbor)).values():
-                    degree_constraint.set_coefficient(adj_edge_indicator, 1)
-                for adj_edge_indicator in self.g2ts((neighbor, graph_n)).values():
-                    degree_constraint.set_coefficient(adj_edge_indicator, 1)
-
-            degree_constraint.set_relation(pylp.Relation.LessEqual)
-            degree_constraint.set_value(0)
-            self.constraints.add(degree_constraint)
+    def add_constraint(self, constraints, relation, value, key):
+        print(key)
+        for constraint in constraints:
+            c = pylp.LinearConstraint()
+            for match_indicator, weight in constraint:
+                c.set_coefficient(match_indicator, weight)
+            c.set_relation(getattr(pylp.Relation, relation))
+            c.set_value(value)
+            self.constraints.add(c)
 
     def __create_constraints(self):
         """
@@ -370,19 +201,14 @@ class GraphToTreeMatcher:
         Pattern Recognition, Elsevier, 2012, 45 (12), pp.4214-4224. ffhal-00726076
         """
 
+        all_constraints = get_constraints(
+            self.graph, self.tree, self.node_match_costs, self.edge_match_costs
+        )
+
         self.constraints = pylp.LinearConstraints()
-
-        self.__add_one_to_one_t2g_node_constraint()
-
-        self.__add_many_to_one_t2g_edge_constraint()
-
-        self.__add_g_node_must_match_constraint()
-
-        self.__add_branch_topology_constraint()
-
-        self.__add_solid_chain_constraint()
-
-        self.__add_degree_constraint()
+        for key, (constraints, relation, value) in all_constraints.items():
+            logger.debug(f"{key}: {len(constraints)}")
+            self.add_constraint(constraints, relation, value, key)
 
     def __create_objective(self):
 
@@ -398,12 +224,36 @@ class GraphToTreeMatcher:
         Force a specific set of matchings to be made in any solution.
         """
         expected_assignment_constraint = pylp.LinearConstraint()
+        failed_matchings = []
         num_assignments = 0
         for match_a, match_b in expected_assignments:
-            expected_assignment_constraint.set_coefficient(
-                self.g2t(match_a, match_b), 1
+            match_ind = self.g2t(match_a, match_b)
+            logger.debug(
+                f"Enforcing match {(match_a, match_b)} with match index {match_ind}"
             )
-            num_assignments += 1
+            if match_ind is None:
+                # This is most likely an edge matching since edges don't have an
+                # explicit indicator for None matchings
+                if match_a in self.g2t_match_indicators and match_b is None:
+                    # if there is no None match available, then this must be an edge matching
+                    # enfore unmatched edge
+                    for match, ind in self.g2ts(match_a).items():
+                        expected_assignment_constraint.set_coefficient(ind, -1)
+                elif match_a in self.g2t_match_indicators and match_b is not None:
+                    logger.debug(f"Matching {(match_a, match_b)} is impossible!")
+                    failed_matchings.append((match_a, match_b))
+                elif match_a not in self.g2t_match_indicators:
+                    logger.debug(
+                        f"Attempting to enforce matching for {match_a} which has no possible matches!"
+                    )
+                    failed_matchings.append((match_a, match_b))
+            else:
+                expected_assignment_constraint.set_coefficient(match_ind, 1)
+                num_assignments += 1
         expected_assignment_constraint.set_relation(pylp.Relation.Equal)
         expected_assignment_constraint.set_value(num_assignments)
         self.constraints.add(expected_assignment_constraint)
+        logger.warning(
+            f"{len(failed_matchings)} of {len(expected_assignments)} were not enforcable!"
+        )
+

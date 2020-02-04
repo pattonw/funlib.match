@@ -12,5 +12,7 @@ install-dev:
 
 .PHONY: tests
 tests:
-	pytest -v --cov=funlib funlib -m "not slow"
+	pytest -v --cov=funlib funlib -m "not benchmark"
 	flake8 funlib
+benchmark:
+	pytest -v funlib --benchmark-group-by=param:constraint -m "benchmark"
