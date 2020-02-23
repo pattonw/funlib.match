@@ -1,6 +1,8 @@
 import pylp
+
 import functools
 import itertools
+from typing import List, Tuple, Dict
 
 
 def get_constraints(graph, tree, node_match_costs, edge_match_costs):
@@ -16,10 +18,16 @@ def get_constraints(graph, tree, node_match_costs, edge_match_costs):
     tree_node_indx_map = {x: i for i, x in enumerate(tree_nodes)}
 
     graph_edges = [(u, v) for u, v in graph.edges()]
+    graph_edge_indices = [
+        (graph_node_indx_map[u], graph_node_indx_map[v]) for u, v in graph_edges
+    ]
     num_graph_edges = len(graph_edges)
     graph_edge_indx_map = {x: i for i, x in enumerate(graph_edges)}
 
     tree_edges = [(u, v) for u, v in tree.edges()]
+    tree_edge_indices = [
+        (tree_node_indx_map[u], tree_node_indx_map[v]) for u, v in tree_edges
+    ]
     num_tree_edges = len(tree_edges)
     tree_edge_indx_map = {x: i for i, x in enumerate(tree_edges)}
 
@@ -70,6 +78,7 @@ def get_constraints(graph, tree, node_match_costs, edge_match_costs):
         for n in tree_nodes
     }
     tree_degree = {tree_node_indx_map[x]: tree.degree(x) for x in tree_nodes}
+    tree_degrees = [tree_degree[i] for i in range(len(tree_nodes))]
 
     # get constraints
     all_constraints = {}
@@ -82,14 +91,25 @@ def get_constraints(graph, tree, node_match_costs, edge_match_costs):
     all_constraints["G-T NODES"] = get_g2t_node_constraint(
         node_matchings, num_graph_nodes
     )
-    all_constraints["BRANCH TOPOLOGY"] = get_branch_topology_constraint(
-        node_matchings,
-        in_g_edges,
-        out_g_edges,
-        in_t_edges,
-        out_t_edges,
+    # all_constraints["BRANCH TOPOLOGY"] = get_branch_topology_constraint_v2(
+    #     node_matchings,
+    #     in_g_edges,
+    #     out_g_edges,
+    #     in_t_edges,
+    #     out_t_edges,
+    #     edge_matching_indices,
+    # )
+
+    all_constraints["BRANCH TOPOLOGY"] = get_branch_topology_constraint_v2(
         edge_matching_indices,
+        node_matchings,
+        tree_degrees,
+        graph_edge_indices,
+        tree_edge_indices,
+        node_match_indx,
+        num_node_matchings,
     )
+
     all_constraints["CHAIN"] = get_solid_chain_constraint(
         num_graph_nodes, edge_matchings, node_match_indx, num_node_matchings
     )
@@ -186,6 +206,64 @@ def get_branch_topology_constraint(
     )
 
 
+def get_branch_topology_constraint_v2(
+    edge_matchings: List[Tuple[int, int]],
+    node_matchings: List[Tuple[int, int]],
+    tree_degrees: List[int],
+    graph_edges: Dict[int, Tuple[int, int]],
+    tree_edges: Dict[int, Tuple[int, int]],
+    node_match_indices: Dict[Tuple[int, int], int],
+    num_node_matchings: int,
+):
+    """
+    For every pair of matched nodes j, k in V(G), V(T),
+        (2e) Every edge targeting k in T must match to an edge targeting j in G
+        (2f) Every edge originating from k in T must match to an edge originating from j in G
+
+    """
+    constraints = {}
+
+    for i, (g_e, t_e) in enumerate(edge_matchings):
+        g_u, g_v = graph_edges[g_e]
+        t_u, t_v = tree_edges[t_e]
+
+        uu_index = node_match_indices.get((g_u, t_u))
+        vv_index = node_match_indices.get((g_v, t_v))
+
+        if uu_index is not None:
+            uu_constraints = constraints.setdefault((g_u, t_u), {})
+
+            uu_ge_constraint = uu_constraints.setdefault(t_e, [(uu_index, 1)])
+
+            uu_ge_constraint.append((i + num_node_matchings, -1))
+
+        if vv_index is not None:
+            vv_constraints = constraints.setdefault((g_v, t_v), {})
+
+            vv_ge_constraint = vv_constraints.setdefault(
+                t_e, [(node_match_indices[(g_v, t_v)], 1)]
+            )
+
+            vv_ge_constraint.append((i + num_node_matchings, -1))
+
+    for (g_n, t_n) in node_matchings:
+        if t_n == len(tree_degrees):
+            continue
+        node_match_constraints = constraints.setdefault((g_n, t_n), {})
+        if len(node_match_constraints) < tree_degrees[t_n]:
+            node_match_constraints[None] = [(node_match_indices[(g_n, t_n)], 1)]
+
+    return (
+        [
+            edge_constraint
+            for node_match_constraints in constraints.values()
+            for edge_constraint in node_match_constraints.values()
+        ],
+        "LessEqual",
+        0,
+    )
+
+
 def get_solid_chain_constraint(
     num_g_nodes, edge_matchings, node_match_indx, num_node_matchings
 ):
@@ -209,6 +287,45 @@ def get_solid_chain_constraint(
     Finally, if i matches to neither k nor l, then to maintain a chain, we must
     have exactly 1 edge originating from i match to kl *and* exactly 1 edge
     targeting i to match to kl.
+
+    DIFFERENCE TO REFERENCE IMPLEMENTATION:
+        Original method:
+        get g_n
+        get all possible t_e that match to any g_e adjacent to g_n
+        for each g_n, t_e create a constraint:
+
+            for each every g_in -> t_e match -1
+            for each every g_out -> t_e match +1
+            for every possible t_n match of g_n:
+                (g_n, t_n) -1 if t_n = t_e.source
+                (g_n, t_n) +1 if t_n = t_e.target
+
+
+        Reference: simple 4 branch (from tests):
+        g_n = h
+        t_e = XB
+        g_ins -> t_e: (eh, XB) -1
+        g_outs -> t_e:
+        g_n -> t_n: (h, X) -1  <- THIS IS THE DIFFERENCE
+
+        Reformulated: simple 4 branch (from tests):
+        g_u, g_v, t_u, t_v = e, h, X, B
+
+        Why are we missing hX in reformulation?
+        Only add node balance if g_u==t_u or g_v==t_v
+        Thus since there is no (he, XB) we never check hX
+
+        Is it correct to keep it?
+        Yes
+        When will it occur?
+        a matching (g_n, t_n) exists, but no (gu, gv, tu, tv) exists
+        s.t. (g_n, t_n) == (g_u, t_u) or (g_n, t_n) == (g_v, t_v).
+
+        Do any of the other constraints prevent (g_n, t_n) in this case?
+        Yes: Degree constraint and topology constraint and existance of all t_n and t_e
+        all guarantee that it would be impossible to match a (g_n, t_n) without
+        any adjacent edges. 
+
     """
     constraints = [{} for _ in range(num_g_nodes)]
 

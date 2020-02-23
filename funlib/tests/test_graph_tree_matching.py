@@ -143,8 +143,18 @@ def test_valid_matching(
     node_matchings, edge_matchings, cost = matcher.match()
     matchings = {a: b for a, b in itertools.chain(node_matchings, edge_matchings)}
 
-    for a, b in itertools.chain(expected_node_matchings, expected_edge_matchings):
-        assert matchings[a] == b
+    expected_matchings = tuple(
+        [x for x in itertools.chain(expected_node_matchings, expected_edge_matchings)]
+    )
+    seen_matchings = tuple(
+        [
+            (a, matchings[a])
+            for a, _ in itertools.chain(
+                expected_node_matchings, expected_edge_matchings
+            )
+        ]
+    )
+    assert expected_matchings == seen_matchings
 
     assert cost == expected_cost
 

@@ -24,6 +24,7 @@ class GraphToTreeMatcher:
         edge_match_costs: Iterable[Tuple[Edge, Edge, float]],
         use_gurobi: bool = True,
         create_constraints: bool = True,
+        timeout: float = 600,
     ):
         if isinstance(graph, nx.DiGraph):
             self.undirected_graph = graph.to_undirected()
@@ -45,6 +46,7 @@ class GraphToTreeMatcher:
         )
 
         self.use_gurobi = use_gurobi
+        self.timeout = timeout
 
         self.node_match_costs = list(node_match_costs)
         self.edge_match_costs = list(edge_match_costs)
@@ -128,16 +130,19 @@ class GraphToTreeMatcher:
             solver = pylp.create_linear_solver(pylp.Preference.Scip)
             # don't set num threads. It leads to a core dump
         solver.initialize(self.num_variables, pylp.VariableType.Binary)
-        solver.set_timeout(120)
+        solver.set_timeout(self.timeout)
 
         solver.set_objective(self.objective)
 
-        logger.debug(f"Starting Solve!")
+        logger.debug(
+            f"Starting Solve: {self.num_variables} indicators "
+            f"and {self.num_constraints} constraints!"
+        )
 
         solver.set_constraints(self.constraints)
         solution, message = solver.solve()
         logger.debug(f"Finished solving!, got message ({message})")
-        if "NOT" in message:
+        if "NOT" in message and not "feasible solutions found" in message:
             raise ValueError(message)
 
         return solution
@@ -181,7 +186,6 @@ class GraphToTreeMatcher:
             self.match_indicator_costs.append(cost)
 
     def add_constraint(self, constraints, relation, value, key):
-        print(key)
         for constraint in constraints:
             c = pylp.LinearConstraint()
             for match_indicator, weight in constraint:
@@ -201,12 +205,14 @@ class GraphToTreeMatcher:
         Pattern Recognition, Elsevier, 2012, 45 (12), pp.4214-4224. ffhal-00726076
         """
 
+        self.num_constraints = 0
         all_constraints = get_constraints(
             self.graph, self.tree, self.node_match_costs, self.edge_match_costs
         )
 
         self.constraints = pylp.LinearConstraints()
         for key, (constraints, relation, value) in all_constraints.items():
+            self.num_constraints += len(constraints)
             logger.debug(f"{key}: {len(constraints)}")
             self.add_constraint(constraints, relation, value, key)
 

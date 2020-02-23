@@ -7,6 +7,9 @@ import pytest
 import pylp
 
 from funlib.match.get_constraints import get_constraints
+from funlib.match.get_constraints_reference import (
+    get_constraints as get_constraints_ref,
+)
 
 from .gurobi_check import gurobi_installed_with_license
 from .valid_matchings import (
@@ -69,12 +72,13 @@ def test_valid_matching(
 
     constraints = get_constraints(overcomplete, target, node_costs, edge_costs)
 
-    for key, other_implementation in []:
-        comparison_constraints = other_implementation(
+    for other_implementation in [get_constraints_ref]:
+        other_constraints = other_implementation(
             overcomplete, target, node_costs, edge_costs
         )
 
         for key in constraints.keys():
+            print(key)
             cs, equiv, val = constraints[key]
             cs = set([tuple(sorted(x, key=lambda x: x[0])) for x in cs])
             other_cs, other_equiv, other_val = other_constraints[key]
