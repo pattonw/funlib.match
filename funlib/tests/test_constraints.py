@@ -45,9 +45,14 @@ from .valid_matchings import (
         ),
     ],
 )
-def test_valid_matching(
+@pytest.mark.xfail
+def test_vectorized_constraints(
     data_func, use_gurobi, directed_overcomplete, enforced_assignments=[]
 ):
+    # TODO: Chain constraint reference implementation seems to create more
+    # constraints than strictly necessary. Open question: how do these extra
+    # constraints affect performance?
+
     (
         target_nodes,
         target_edges,
