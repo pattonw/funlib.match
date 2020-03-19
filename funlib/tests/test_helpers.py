@@ -3,7 +3,7 @@ from funlib.match.helper_functions import match
 import networkx as nx
 import pytest
 
-from .test_graph_tree_matching import gurobi_installed_with_license
+from .gurobi_check import gurobi_installed_with_license
 from .valid_matchings import (
     simple_4_branch,
     simple_chain,
