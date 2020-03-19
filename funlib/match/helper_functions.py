@@ -11,7 +11,7 @@ def build_matched(
     graph: nx.Graph,
     node_matchings: List[Tuple[Node, Node]],
     edge_matchings: List[Tuple[Edge, Edge]],
-    target_attr: "target",
+    target_attr:str = "target",
 ):
     """
     Given a graph, and a set of node and edge matchings, this function
