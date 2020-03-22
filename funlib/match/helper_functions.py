@@ -32,12 +32,20 @@ def build_matched(
             for graph_n, tree_n in node_matchings
         ]
     )
+    for node in nodes:
+        if node not in matched:
+            matched.add_node(node, **{target_attr: None, **copy.deepcopy(graph.nodes[node])})
+            
     matched.add_edges_from(
         [
             (u, v, {target_attr: tree_e, **copy.deepcopy(graph.edges[(u, v)])})
             for (u, v), tree_e in edge_matchings
         ]
     )
+    assert set(matched.nodes) == nodes
+    for node in matched:
+        if "location" not in matched.nodes[node]:
+            print(graph.nodes[node])
 
     return matched
 
