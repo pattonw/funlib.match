@@ -3,6 +3,7 @@ import networkx as nx
 
 import logging
 import itertools
+import time
 from copy import deepcopy
 from typing import Hashable, Tuple, List, Dict, Iterable, Optional, Union
 
@@ -128,8 +129,11 @@ class GraphToTreeMatcher:
         #     f"and {self.num_constraints} constraints!"
         # )
 
+        t1 = time.time()
         self.model.optimize()
-
+        t2 = time.time()
+        print(f"SOLVING TOOK A TOTAL OF {t2-t1} SECONDS!")
+        
         if self.model.num_solutions:
             logger.info(f"Got {self.model.num_solutions} solutions!")
 
