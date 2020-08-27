@@ -4,8 +4,6 @@ import numpy as np
 import itertools
 import pytest
 
-import pylp
-
 from funlib.match.get_constraints import get_constraints
 from funlib.match.get_constraints_reference import (
     get_constraints as get_constraints_ref,

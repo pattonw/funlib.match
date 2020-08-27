@@ -1,4 +1,4 @@
-import pylp
+import mip
 import networkx as nx
 
 import logging
@@ -51,10 +51,11 @@ class GraphToTreeMatcher:
         self.node_match_costs = list(node_match_costs)
         self.edge_match_costs = list(edge_match_costs)
 
-        self.objective = None
-        self.constraints = pylp.LinearConstraints()
+        self.model = mip.Model()
 
-        self.__create_inidicators()
+        self.objective = None
+
+        self.__create_indicators()
         if create_constraints:
             self.__create_constraints()
         self.__create_objective()
@@ -85,22 +86,24 @@ class GraphToTreeMatcher:
         """
         return self.t2g(query, target)
 
-    def match(self,) -> Tuple[List[Tuple[Node, Node]], List[Tuple[Edge, Edge]], float]:
+    def match(
+        self,
+    ) -> Tuple[List[Tuple[Node, Node]], List[Tuple[Edge, Edge]], float]:
         """
         Return a Tuple containing a list of node matching tuples, a list of edge matching
         tuples, and a float indicating the cost of the matching.
         """
 
-        solution = self.solve()
+        self.solve()
         logger.debug(
-            f"Found optimal solution with score: {self._score_solution(solution)}"
+            f"Found optimal solution with score: {self._score_solution()}"
         )
 
         edge_matches = []
         for target in self.graph.edges():
             matched = False
             for match, ind in self.g2ts(target).items():
-                if solution[ind] > 0.5:
+                if self.indicators[ind].x > 0.5:
                     edge_matches.append((target, match))
                     matched = True
             if not matched:
@@ -109,61 +112,50 @@ class GraphToTreeMatcher:
         node_matches = []
         for target in self.graph.nodes():
             for match, ind in self.g2ts(target).items():
-                if solution[ind] > 0.5:
+                if self.indicators[ind].x > 0.5:
                     node_matches.append((target, match))
                     matched = True
 
-        return node_matches, edge_matches, self._score_solution(solution)
+        return node_matches, edge_matches, self._score_solution()
 
     def solve(self):
         """
         Solves the matching problem and returns a solution if possible.
         If problem is impossible, raises a ValueError
         """
-        logger.debug(f"Creating Solver!")
-        if self.use_gurobi:
-            solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
-            # set num threads sometimes causes an error. See issue #5 on
-            # github.com/funkey/pylp
-            # solver.set_num_threads(1)
+
+        # logger.debug(
+        #     f"Starting Solve: {self.num_variables} indicators "
+        #     f"and {self.num_constraints} constraints!"
+        # )
+
+        self.model.optimize()
+        
+        if self.model.num_solutions:
+            logger.info(f"Got {self.model.num_solutions} solutions!")
+            
         else:
-            solver = pylp.create_linear_solver(pylp.Preference.Scip)
-            # don't set num threads. It leads to a core dump
-        solver.initialize(self.num_variables, pylp.VariableType.Binary)
-        solver.set_timeout(self.timeout)
+            raise ValueError(f"Optimal solution *NOT* found")
 
-        solver.set_objective(self.objective)
+        return self.model
 
-        logger.debug(
-            f"Starting Solve: {self.num_variables} indicators "
-            f"and {self.num_constraints} constraints!"
-        )
-
-        solver.set_constraints(self.constraints)
-        solution, message = solver.solve()
-        logger.debug(f"Finished solving!, got message ({message})")
-        if "NOT" in message and not "feasible solutions found" in message:
-            raise ValueError(message)
-
-        return solution
-
-    def _score_solution(self, solution) -> float:
+    def _score_solution(self) -> float:
         """
         Get the total cost of a particular solution
         """
         total = 0
         for target in itertools.chain(self.graph.nodes(), self.graph.edges()):
             for l, i in self.g2ts(target).items():
-                if solution[i] > 0.5:
+                if self.indicators[i].x > 0.5:
                     total += self.match_indicator_costs[i]
         return total
 
-    def __create_inidicators(self):
+    def __create_indicators(self):
         """
         Creates binary indicators:
         For all i,j in V(G), V(T), there exists an x_{i,j} s.t.
             x_{i,j} = 1 if node i matches to node j, else 0
-        For all kl,mn in E(G), E(T), there exists an y_{kl, mn} s.t. 
+        For all kl,mn in E(G), E(T), there exists an y_{kl, mn} s.t.
             y_{kl,mn} = 1 if edge kl matches to edge mn, else 0
         """
 
@@ -172,6 +164,7 @@ class GraphToTreeMatcher:
         self.g2t_match_indicators = {}
         self.t2g_match_indicators = {}
         self.match_indicator_costs = []
+        self.indicators = []
         self.num_variables = len(self.node_match_costs) + len(self.edge_match_costs)
 
         for i, (source, target, cost) in enumerate(
@@ -183,16 +176,29 @@ class GraphToTreeMatcher:
             v2g_node_indicators = self.t2g_match_indicators.setdefault(target, {})
             v2g_node_indicators[source] = i
 
+            self.indicators.append(self.model.add_var(var_type=mip.BINARY))
             self.match_indicator_costs.append(cost)
 
     def add_constraint(self, constraints, relation, value, key):
         for constraint in constraints:
-            c = pylp.LinearConstraint()
-            for match_indicator, weight in constraint:
-                c.set_coefficient(match_indicator, weight)
-            c.set_relation(getattr(pylp.Relation, relation))
-            c.set_value(value)
-            self.constraints.add(c)
+            if relation == "Equal":
+                self.model += (
+                    mip.xsum(
+                        self.indicators[indicator] * weight
+                        for indicator, weight in constraint
+                    )
+                    == value
+                )
+            elif relation == "LessEqual":
+                self.model += (
+                    mip.xsum(
+                        self.indicators[indicator] * weight
+                        for indicator, weight in constraint
+                    )
+                    <= value
+                )
+            else:
+                raise NotImplementedError(relation)
 
     def __create_constraints(self):
         """
@@ -210,7 +216,6 @@ class GraphToTreeMatcher:
             self.graph, self.tree, self.node_match_costs, self.edge_match_costs
         )
 
-        self.constraints = pylp.LinearConstraints()
         for key, (constraints, relation, value) in all_constraints.items():
             self.num_constraints += len(constraints)
             logger.debug(f"{key}: {len(constraints)}")
@@ -218,10 +223,12 @@ class GraphToTreeMatcher:
 
     def __create_objective(self):
 
-        self.objective = pylp.LinearObjective(self.num_variables)
-
-        for i, c in enumerate(self.match_indicator_costs):
-            self.objective.set_coefficient(i, c)
+        self.model.objective = mip.minimize(
+            mip.xsum(
+                cost * indicator
+                for cost, indicator in zip(self.match_indicator_costs, self.indicators)
+            )
+        )
 
     def enforce_expected_assignments(
         self, expected_assignments: Iterable[Tuple[Matchable, Matchable]]
@@ -229,9 +236,9 @@ class GraphToTreeMatcher:
         """
         Force a specific set of matchings to be made in any solution.
         """
-        expected_assignment_constraint = pylp.LinearConstraint()
         failed_matchings = []
         num_assignments = 0
+        expected_assignment_constraint = [[[]], "Equal", 0]
         for match_a, match_b in expected_assignments:
             match_ind = self.g2t(match_a, match_b)
             logger.debug(
@@ -244,7 +251,7 @@ class GraphToTreeMatcher:
                     # if there is no None match available, then this must be an edge matching
                     # enfore unmatched edge
                     for match, ind in self.g2ts(match_a).items():
-                        expected_assignment_constraint.set_coefficient(ind, -1)
+                        expected_assignment_constraint[0][0].append((ind, -1))
                 elif match_a in self.g2t_match_indicators and match_b is not None:
                     logger.debug(f"Matching {(match_a, match_b)} is impossible!")
                     failed_matchings.append((match_a, match_b))
@@ -254,12 +261,9 @@ class GraphToTreeMatcher:
                     )
                     failed_matchings.append((match_a, match_b))
             else:
-                expected_assignment_constraint.set_coefficient(match_ind, 1)
-                num_assignments += 1
-        expected_assignment_constraint.set_relation(pylp.Relation.Equal)
-        expected_assignment_constraint.set_value(num_assignments)
-        self.constraints.add(expected_assignment_constraint)
+                expected_assignment_constraint[0][0].append((match_ind, 1))
+                expected_assignment_constraint[2] += 1
+        self.add_constraint(*expected_assignment_constraint, "Enforced")
         logger.warning(
             f"{len(failed_matchings)} of {len(expected_assignments)} were not enforcable!"
         )
-

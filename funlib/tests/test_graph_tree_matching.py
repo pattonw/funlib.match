@@ -4,8 +4,6 @@ import numpy as np
 import itertools
 import pytest
 
-import pylp
-
 from funlib.match import GraphToTreeMatcher
 
 from .valid_matchings import (

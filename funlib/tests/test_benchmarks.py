@@ -4,8 +4,6 @@ import numpy as np
 import itertools
 import pytest
 
-import pylp
-
 from funlib.match.graph_to_tree_matcher import GraphToTreeMatcher
 
 from .realistic import large
@@ -28,23 +26,6 @@ from funlib.match.get_constraints import (
     get_solid_chain_constraint as get_4,
     get_degree_constraint as get_5,
 )
-
-
-def gurobi_installed_with_license():
-    try:
-        solver = pylp.create_linear_solver(pylp.Preference.Gurobi)
-        solver.initialize(1, pylp.VariableType.Binary)
-        objective = pylp.LinearObjective(1)
-        objective.set_coefficient(1, 1)
-        solver.set_objective(objective)
-        constraints = pylp.LinearConstraints()
-        solver.set_constraints(constraints)
-        solution, message = solver.solve()
-        success = True
-    except RuntimeError:
-        success = False
-
-    return pytest.mark.skipif(not success, reason="Requires Gurobi License")
 
 
 def get_inputs(m, constraint, implementation):

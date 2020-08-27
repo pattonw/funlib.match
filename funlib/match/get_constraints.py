@@ -1,5 +1,3 @@
-import pylp
-
 import functools
 import itertools
 from typing import List, Tuple, Dict

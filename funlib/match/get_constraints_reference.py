@@ -1,4 +1,3 @@
-import pylp
 import itertools
 
 
@@ -43,10 +42,17 @@ def get_constraints(graph, tree, node_match_costs, edge_match_costs):
         graph_in_edges,
     )
     all_constraints["CHAIN"] = get_solid_chain_constraint(
-        graph_nodes, g2ts, tree_edges, graph_in_edges, graph_out_edges,
+        graph_nodes,
+        g2ts,
+        tree_edges,
+        graph_in_edges,
+        graph_out_edges,
     )
     all_constraints["DEGREE"] = get_degree_constraint(
-        graph_nodes, g2ts, tree_degree, graph_neighbors,
+        graph_nodes,
+        g2ts,
+        tree_degree,
+        graph_neighbors,
     )
     # return constraints
     return all_constraints
@@ -100,7 +106,12 @@ def get_g2t_node_constraint(graph_nodes, g2ts):
 
 
 def get_branch_topology_constraint(
-    graph_nodes, g2ts, tree_out_edges, tree_in_edges, graph_out_edges, graph_in_edges,
+    graph_nodes,
+    g2ts,
+    tree_out_edges,
+    tree_in_edges,
+    graph_out_edges,
+    graph_in_edges,
 ):
     """
     For every pair of matched nodes j, k in V(G), V(T),
@@ -143,13 +154,13 @@ def get_solid_chain_constraint(
     The previous constraints are enough to cover isomorphisms, but we need to model chains
     in G representing edges in S
     Consider:
-    
+
     T:      A---------------------------------------B
     G:      a--b--c---------------------------d--e--f
 
     Under previous constraints, matching AB to ab and ef would be sufficient.
 
-    Consider a node i in G and an edge kl in T. 
+    Consider a node i in G and an edge kl in T.
     If i matches to k, then we know
     there should be exactly 1 edge originating from i that matches to kl, and 0
     edges targeting i should match to kl.
