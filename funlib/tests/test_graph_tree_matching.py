@@ -17,8 +17,6 @@ from .valid_matchings import (
 
 from .invalid_matchings import not_overcomplete
 
-from .realistic import large
-
 from .gurobi_check import gurobi_installed_with_license
 
 

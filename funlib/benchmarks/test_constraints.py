@@ -8,6 +8,7 @@ from funlib.match.graph_to_tree_matcher import GraphToTreeMatcher
 
 from .realistic import large
 
+# Reference versions
 from funlib.match.get_constraints_reference import (
     get_constraints as ref_all,
     get_121_t2g_node_constraint as ref_0,
@@ -17,6 +18,7 @@ from funlib.match.get_constraints_reference import (
     get_solid_chain_constraint as ref_4,
     get_degree_constraint as ref_5,
 )
+# Vectorized versions
 from funlib.match.get_constraints import (
     get_constraints as get_all,
     get_121_t2g_node_constraint as get_0,
@@ -358,7 +360,7 @@ def get_func(constraint, implementation):
 @pytest.mark.parametrize(
     "data_func", [large,],
 )
-@pytest.mark.parametrize("constraint", [-1, 5])
+@pytest.mark.parametrize("constraint", [0, 1, 2, 3, 4, 5])
 @pytest.mark.parametrize(
     "implementation", ["reference", "vectorized"],
 )
