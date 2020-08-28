@@ -1,4 +1,6 @@
 networkx
 flake8
+black
 pytest
 pytest-cov
+pytest-benchmark
