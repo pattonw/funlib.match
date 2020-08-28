@@ -1,5 +1,6 @@
 import pickle
 from pathlib import Path
+import pytest
 
 import networkx as nx
 
@@ -29,7 +30,10 @@ def large():
         edge_costs,
     )
 
-def test_large():
+@pytest.mark.parametrize(
+    "use_gurobi", [True, False],
+)
+def test_large(use_gurobi):
     (
         target_nodes,
         target_edges,
@@ -47,6 +51,6 @@ def test_large():
     overcomplete.add_edges_from(overcomplete_edges)
 
     matcher = GraphToTreeMatcher(
-        overcomplete, target, node_costs, edge_costs, use_gurobi=False
+        overcomplete, target, node_costs, edge_costs, use_gurobi=use_gurobi
     )
     node_matchings, edge_matchings, cost = matcher.match()
