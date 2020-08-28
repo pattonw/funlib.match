@@ -51,7 +51,8 @@ class GraphToTreeMatcher:
         self.node_match_costs = list(node_match_costs)
         self.edge_match_costs = list(edge_match_costs)
 
-        self.model = mip.Model()
+        self.model = mip.Model(solver_name=mip.GRB if use_gurobi else mip.CBC)
+        self.model.max_seconds = self.timeout
 
         self.objective = None
 
@@ -95,9 +96,7 @@ class GraphToTreeMatcher:
         """
 
         self.solve()
-        logger.debug(
-            f"Found optimal solution with score: {self._score_solution()}"
-        )
+        logger.debug(f"Found optimal solution with score: {self._score_solution()}")
 
         edge_matches = []
         for target in self.graph.edges():
@@ -130,10 +129,10 @@ class GraphToTreeMatcher:
         # )
 
         self.model.optimize()
-        
+
         if self.model.num_solutions:
             logger.info(f"Got {self.model.num_solutions} solutions!")
-            
+
         else:
             raise ValueError(f"Optimal solution *NOT* found")
 
